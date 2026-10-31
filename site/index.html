@@ -100,7 +100,7 @@
   <div class="row">
     <select id="theater"><option value="">Tous les cinémas</option></select>
     <select id="sort">
-      <option value="wl">Tri : watchlist d'abord</option>
+      <option value="wl">Tri : watchlist, puis note</option>
       <option value="lb">Tri : note Letterboxd</option>
       <option value="imdb">Tri : note IMDb</option>
       <option value="n">Tri : nombre de séances</option>
@@ -239,7 +239,7 @@ function render() {
   films.forEach((x) => (x.wl = inWatchlist(x.f)));
   if (state.onlyWl) films = films.filter((x) => x.wl);
   const by = {
-    wl: (a, b) => (b.wl - a.wl) || (b.shows.length - a.shows.length),
+    wl: (a, b) => (b.wl - a.wl) || (b.f.lbRating || 0) - (a.f.lbRating || 0) || (b.f.imdbRating || 0) - (a.f.imdbRating || 0),
     lb: (a, b) => (b.f.lbRating || 0) - (a.f.lbRating || 0) || (b.wl - a.wl),
     imdb: (a, b) => (b.f.imdbRating || 0) - (a.f.imdbRating || 0) || (b.f.lbRating || 0) - (a.f.lbRating || 0),
     n: (a, b) => b.shows.length - a.shows.length,
