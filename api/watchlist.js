@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
       if (synced === null) return send(res, 404, { error: "Membre introuvable ou watchlist privée" });
       rec = synced;
     }
-    send(res, 200, { user, syncedAt: rec.t, films: rec.films });
+    send(res, 200, { user, syncedAt: rec.t, stored: store.hasDatabase, films: rec.films });
   } catch (e) {
     send(res, 502, { error: String(e.message || e) });
   }
