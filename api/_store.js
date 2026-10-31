@@ -17,14 +17,18 @@ async function redis(...cmds) {
 
 // Chaque pseudo : wl:<pseudo> = { t: date de synchro, films }, plus deux index triés
 // par date de synchro (« synced ») et de dernière visite (« seen »).
-async function load(user) {
+// visit=false : lecture par la synchro de nuit, qui ne compte pas comme une visite
+async function load(user, visit = true) {
   if (!URL_) return memory.get(user) || null;
-  const [v] = await redis(["GET", `wl:${user}`], ["ZADD", "seen", Date.now(), user]);
+  const cmds = [["GET", `wl:${user}`]];
+  if (visit) cmds.push(["ZADD", "seen", Date.now(), user]);
+  const [v] = await redis(...cmds);
   return v ? JSON.parse(v) : null;
 }
 
-async function save(user, films) {
-  const rec = { t: Date.now(), films };
+// t : dernière synchro ; full : dernière relecture complète
+async function save(user, films, full = Date.now()) {
+  const rec = { t: Date.now(), full, films };
   if (!URL_) return memory.set(user, rec), rec;
   await redis(
     ["SET", `wl:${user}`, JSON.stringify(rec)],

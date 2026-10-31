@@ -1,11 +1,11 @@
 // GET /api/watchlist?user=pseudo         -> watchlist gardée sur le site (lue sur Letterboxd la première fois)
-// GET /api/watchlist?user=pseudo&sync=1  -> relit la watchlist sur Letterboxd (au plus une fois par heure)
+// GET /api/watchlist?user=pseudo&sync=1  -> resynchronise avec Letterboxd (au plus une fois toutes les 10 min)
 // Réponse : { user, syncedAt, films: [[slug, titre, année], ...] }
 
-const { getWatchlist } = require("./_letterboxd");
+const { syncUser } = require("./_sync");
 const store = require("./_store");
 
-const SYNC_COOLDOWN = 3600e3;
+const SYNC_COOLDOWN = 10 * 60e3;
 
 function send(res, code, body) {
   res.statusCode = code;
@@ -30,9 +30,9 @@ module.exports = async function handler(req, res) {
         const body = { error: "Le site est très sollicité, réessaie dans une minute" };
         return rec ? send(res, 429, { ...body, user, syncedAt: rec.t, films: rec.films }) : send(res, 503, body);
       }
-      const films = await getWatchlist(user);
-      if (films === null) return send(res, 404, { error: "Membre introuvable ou watchlist privée" });
-      rec = await store.save(user, films);
+      const synced = await syncUser(user, rec);
+      if (synced === null) return send(res, 404, { error: "Membre introuvable ou watchlist privée" });
+      rec = synced;
     }
     send(res, 200, { user, syncedAt: rec.t, films: rec.films });
   } catch (e) {

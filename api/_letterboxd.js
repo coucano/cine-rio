@@ -52,4 +52,23 @@ async function getWatchlist(user) {
   return films;
 }
 
-module.exports = { getWatchlist };
+// Synchro par petits bouts : la watchlist est triée des derniers ajouts aux plus anciens,
+// on lit donc les premières pages jusqu'à retrouver un film déjà connu.
+// Renvoie la nouvelle liste, null si le membre n'existe plus, ou undefined s'il faut tout relire.
+async function getNewEntries(user, known, maxPages = 5) {
+  const knownSlugs = new Set(known.map((f) => f[0]));
+  const added = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const html = await fetchPage(user, page);
+    if (html === null) return page === 1 ? null : added.concat(known);
+    const films = parse(html);
+    for (const f of films) {
+      if (knownSlugs.has(f[0])) return added.concat(known);
+      added.push(f);
+    }
+    if (films.length < 28) return added; // dernière page atteinte sans film connu : tout a été remplacé
+  }
+  return undefined;
+}
+
+module.exports = { getWatchlist, getNewEntries };
