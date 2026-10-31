@@ -1,6 +1,5 @@
 {
   "outputDirectory": "site",
-  "buildCommand": "",
   "cleanUrls": true,
   "functions": {
     "api/watchlist.js": { "maxDuration": 60 },
