@@ -547,7 +547,7 @@ function renderCineFilm({ f, shows, wl }) {
   return `<div class="cf${wl ? " wl" : ""}">
     <div class="cf-poster">${f.poster ? `<img loading="lazy" src="${esc(posterUrl(f.poster))}" alt="">` : ""}</div>
     <div class="body">
-      <div class="cf-title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${isPreview ? `<span class="badge tag preview">${T.preview}</span>` : ""}${f.reprise ? `<span class="badge tag reprise">${T.reprise}</span>` : ""}${notes}</div>
+      <div class="cf-title">${esc(mainTitle(f))}${wl ? '<span class="badge">Watchlist</span>' : ""}${isPreview ? `<span class="badge tag preview">${T.preview}</span>` : ""}${f.reprise ? `<span class="badge tag reprise">${T.reprise}</span>` : ""}${notes}</div>
       ${otherTitles(f)}
       ${[...days.entries()].map(([d, ss]) => `<div class="day">${state.day ? "" : `<b>${esc(dayLabel(d, true))}</b>`}
         <span class="times">${ss.map((x) => renderTime(x, f)).join("")}</span></div>`).join("")}
@@ -588,7 +588,7 @@ function renderFilm({ id, f, shows, wl }) {
   return `<article class="film${wl ? " wl" : ""}" data-id="${id}">
     <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(posterUrl(f.poster))}" alt="">` : ""}</div>
     <div class="body">
-      <h2 class="title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${tags}${notes}</h2>
+      <h2 class="title">${esc(mainTitle(f))}${wl ? '<span class="badge">Watchlist</span>' : ""}${tags}${notes}</h2>
       ${otherTitles(f)}
       <div class="meta">${meta}<span class="links"> · ${links}</span></div>
       <button class="toggle" type="button">${OPEN.has(id) ? T.hide : T.show}<small>${summary}</small></button>
@@ -609,11 +609,17 @@ function posterUrl(u) {
   return u.startsWith("data:") ? u : u.replace(/(acsta\.net)\/(?!c_)/, "$1/c_160_213/");
 }
 
+// Titre principal : français sur la version française (s'il existe), VO sur la version brésilienne
+function mainTitle(f) {
+  return (UI === "fr" && f.fr) || f.original || f.title;
+}
+
+// puis, en dessous, les autres titres (VO, français, brésilien) s'ils diffèrent
 function otherTitles(f) {
-  // titre VO en titre principal, puis les titres français et brésilien s'ils diffèrent
-  const seen = new Set([norm(f.original || f.title)]);
+  const seen = new Set([norm(mainTitle(f))]);
   const out = [];
-  for (const [flag, t] of UI === "pt" ? [["BR", f.title]] : [["FR", f.fr], ["BR", f.title]]) {
+  const list = UI === "pt" ? [["BR", f.title]] : [["VO", f.original], ["BR", f.title]];
+  for (const [flag, t] of list) {
     if (t && !seen.has(norm(t))) { seen.add(norm(t)); out.push(`<span><small>${flag}</small> ${esc(t)}</span>`); }
   }
   return out.length ? `<div class="orig">${out.join(" · ")}</div>` : "";
