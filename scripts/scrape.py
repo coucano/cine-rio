@@ -146,12 +146,21 @@ def fetch_theater_day(tid, day):
 
 def movie_info(m):
     year = (m.get("data") or {}).get("productionYear")
-    release = None
+    # date de sortie en salles au Brésil (et non les sorties en VOD / streaming)
+    release, rerelease = None, False
     for r in m.get("releases") or []:
         rd = (r.get("releaseDate") or {}).get("date")
-        if rd:
+        in_theaters = "THEATER" in ((r.get("releaseTags") or {}).get("tagTypes") or [])
+        if r.get("name") == "ReRelease" and in_theaters:
+            rerelease = True
+        elif r.get("name") == "Released" and in_theaters and rd and len(rd) >= 10 and not release:
             release = rd[:10]
-            break
+    this_year = dt.date.today().year
+    # reprise : film sorti en salles il y a au moins deux ans (ou très ancien, sans date connue)
+    reprise = bool(
+        (release and int(release[:4]) <= this_year - 2)
+        or (not release and year and year <= this_year - 3)
+    )
     directors = [
         " ".join(filter(None, [c["person"].get("firstName"), c["person"].get("lastName")]))
         for c in m.get("credits") or []
@@ -167,6 +176,8 @@ def movie_info(m):
         "directors": directors,
         "countries": [c.get("localizedName") or c.get("name") for c in m.get("countries") or []],
         "langs": m.get("languages") or [],
+        "reprise": reprise or (rerelease and bool(year) and year <= this_year - 2),
+        "premiere": bool((m.get("customFlags") or {}).get("isPremiere")),
         "poster": (m.get("poster") or {}).get("url"),
         "url": f"{BASE}/filmes/filme-{m['internalId']}/",
     }

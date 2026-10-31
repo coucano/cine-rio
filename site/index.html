@@ -51,6 +51,9 @@
   .orig small { font-style: normal; font-size: 10px; font-weight: 700; border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; margin-right: 2px; vertical-align: 1px; }
   .orig { color: var(--muted); font-style: italic; font-weight: 400; font-size: 14px; }
   .badge { display: inline-block; background: var(--wl); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; text-transform: uppercase; letter-spacing: .4px; }
+  .badge.tag { text-transform: none; letter-spacing: 0; }
+  .badge.preview { background: #b5179e; }
+  .badge.reprise { background: #6c5ce7; }
   .note { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; background: #2c3440; }
   .note.lb { color: var(--wl); }
   .note.imdb { color: #f5c518; }
@@ -226,6 +229,8 @@ const I18N = {
     sessions: (n) => plural(n, "séance", "séances"), cinemas: (n) => plural(n, "cinéma", "cinémas"),
     verNac: "brésilien", verDub: "dublado", tipVo: "VO légendée", tipNac: "Film brésilien", tipDub: "Dublado",
     updated: (d) => `Mis à jour le ${d}.`,
+    reprise: "Reprise", repriseTip: "Film ancien qui ressort en salles",
+    preview: "Avant-première", previewTip: (d) => `Sortie en salles le ${d}`,
   },
   pt: {
     intro: "As sessões da semana no Rio de Janeiro, com a sua watchlist do Letterboxd em destaque. ",
@@ -251,6 +256,8 @@ const I18N = {
     sessions: (n) => plural(n, "sessão", "sessões"), cinemas: (n) => plural(n, "cinema", "cinemas"),
     verNac: "nacional", verDub: "dublado", tipVo: "Legendado", tipNac: "Filme brasileiro", tipDub: "Dublado",
     updated: (d) => `Atualizado em ${d}.`,
+    reprise: "Relançamento", repriseTip: "Filme antigo de volta aos cinemas",
+    preview: "Pré-estreia", previewTip: (d) => `Estreia nos cinemas em ${d}`,
   },
 };
 const T = I18N[UI];
@@ -493,6 +500,13 @@ function renderFilm({ id, f, shows, wl }) {
     days.get(d).push(s);
   }
   const ths = [...byTh.entries()].sort((a, b) => DATA.theaters[a[0]].name.localeCompare(DATA.theaters[b[0]].name));
+  // avant-première : séance avant la sortie officielle en salles
+  const isPreview = f.premiere || (f.release && shows.some((s) => s[2].slice(0, 10) < f.release));
+  const relDate = f.release && new Date(f.release + "T12:00:00Z").toLocaleDateString(LOCALE, { day: "numeric", month: "long", timeZone: "UTC" });
+  const tags = [
+    isPreview && `<span class="badge tag preview" title="${esc(relDate ? T.previewTip(relDate) : "")}">${T.preview}</span>`,
+    f.reprise && `<span class="badge tag reprise" title="${esc(T.repriseTip)}">${T.reprise}</span>`,
+  ].filter(Boolean).join("");
   const notes = [
     f.lbRating && `<span class="note lb" title="${f.lbVotes || ""} ${T.notes}">★ ${f.lbRating.toFixed(1)}</span>`,
     f.imdbRating && `<span class="note imdb" title="${f.imdbVotes || ""} ${T.votes}">IMDb ${f.imdbRating.toFixed(1)}</span>`,
@@ -509,7 +523,7 @@ function renderFilm({ id, f, shows, wl }) {
   return `<article class="film${wl ? " wl" : ""}" data-id="${id}">
     <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(posterUrl(f.poster))}" alt="">` : ""}</div>
     <div class="body">
-      <h2 class="title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${notes}</h2>
+      <h2 class="title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${tags}${notes}</h2>
       ${otherTitles(f)}
       <div class="meta">${meta}<span class="links"> · ${links}</span></div>
       <button class="toggle" type="button">${OPEN.has(id) ? T.hide : T.show}<small>${summary}</small></button>
@@ -518,7 +532,7 @@ function renderFilm({ id, f, shows, wl }) {
       ${ths.map(([tid, days]) => `<div class="th">
         <div class="th-name">${esc(DATA.theaters[tid].name)}${DATA.theaters[tid].bairro && !norm(DATA.theaters[tid].name).includes(norm(DATA.theaters[tid].bairro)) ? `<span class="bairro">${esc(DATA.theaters[tid].bairro)}</span>` : ""}</div>
         ${[...days.entries()].map(([d, ss]) => `<div class="day">${state.day ? "" : `<b>${esc(dayLabel(d, true))}</b>`}
-          <span class="times">${ss.map(renderTime).join("")}</span></div>`).join("")}
+          <span class="times">${ss.map((x) => renderTime(x, f)).join("")}</span></div>`).join("")}
       </div>`).join("")}
       </div>
     </div>
@@ -540,9 +554,10 @@ function otherTitles(f) {
   return out.length ? `<div class="orig">${out.join(" · ")}</div>` : "";
 }
 
-function renderTime(s) {
+function renderTime(s, f) {
   const [, , at, ver, extra] = s;
-  const tag = { vo: "VO", nac: "", dub: "DUB" }[ver];
+  const pre = f && f.release && at.slice(0, 10) < f.release ? (UI === "pt" ? "PRÉ" : "AVP") : "";
+  const tag = [{ vo: "VO", nac: "", dub: "DUB" }[ver], pre].filter(Boolean).join(" ");
   const ex = (extra || []).filter((e) => e !== "DIGITAL").join(" ");
   return `<span class="t ${ver}" title="${{ vo: T.tipVo, nac: T.tipNac, dub: T.tipDub }[ver]}">${at.slice(11, 16)}${tag || ex ? `<sup>${esc([tag, ex].filter(Boolean).join(" "))}</sup>` : ""}</span>`;
 }
