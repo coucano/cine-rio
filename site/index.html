@@ -46,6 +46,9 @@
   .title { font-size: 18px; font-weight: 700; margin: 0; }
   .orig { color: var(--muted); font-style: italic; font-weight: 400; font-size: 14px; }
   .badge { display: inline-block; background: var(--wl); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; text-transform: uppercase; letter-spacing: .4px; }
+  .note { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; background: #2c3440; }
+  .note.lb { color: var(--wl); }
+  .note.imdb { color: #f5c518; }
   .meta { color: var(--muted); font-size: 13px; margin: 2px 0 6px; }
   .meta a { color: var(--muted); }
   .film { cursor: pointer; }
@@ -93,6 +96,12 @@
   <div class="row days" id="days"></div>
   <div class="row">
     <select id="theater"><option value="">Tous les cinémas</option></select>
+    <select id="sort">
+      <option value="wl">Tri : watchlist d'abord</option>
+      <option value="lb">Tri : note Letterboxd</option>
+      <option value="imdb">Tri : note IMDb</option>
+      <option value="n">Tri : nombre de séances</option>
+    </select>
     <select id="after">
       <option value="">Toute la journée</option>
       <option value="12">Après 12h</option><option value="17">Après 17h</option>
@@ -114,7 +123,7 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
-const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "" };
+const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "", sort: "wl" };
 let DATA = null;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -208,7 +217,13 @@ function render() {
   if (q) films = films.filter(({ f }) => norm(f.title + " " + f.original + " " + f.directors.join(" ")).includes(q));
   films.forEach((x) => (x.wl = inWatchlist(x.f)));
   if (state.onlyWl) films = films.filter((x) => x.wl);
-  films.sort((a, b) => (b.wl - a.wl) || (b.shows.length - a.shows.length));
+  const by = {
+    wl: (a, b) => (b.wl - a.wl) || (b.shows.length - a.shows.length),
+    lb: (a, b) => (b.f.lbRating || 0) - (a.f.lbRating || 0) || (b.wl - a.wl),
+    imdb: (a, b) => (b.f.imdbRating || 0) - (a.f.imdbRating || 0) || (b.f.lbRating || 0) - (a.f.lbRating || 0),
+    n: (a, b) => b.shows.length - a.shows.length,
+  };
+  films.sort(by[state.sort] || by.wl);
 
   $("#count").textContent = films.length
     ? `${films.length} film${films.length > 1 ? "s" : ""}` + (WL ? `, dont ${films.filter((x) => x.wl).length} de ta watchlist` : "")
@@ -230,6 +245,10 @@ function renderFilm({ id, f, shows, wl }) {
     days.get(d).push(s);
   }
   const ths = [...byTh.entries()].sort((a, b) => DATA.theaters[a[0]].name.localeCompare(DATA.theaters[b[0]].name));
+  const notes = [
+    f.lbRating && `<span class="note lb" title="${f.lbVotes || ""} notes">★ ${f.lbRating.toFixed(1)}</span>`,
+    f.imdbRating && `<span class="note imdb" title="${f.imdbVotes || ""} votes">IMDb ${f.imdbRating.toFixed(1)}</span>`,
+  ].filter(Boolean).join("");
   const meta = [f.year, f.runtime, f.directors.length && "de " + f.directors.join(", "), f.genres.slice(0, 2).join(", ")]
     .filter(Boolean).map(esc).join(" · ");
   const lb = f.lb ? `https://letterboxd.com/film/${f.lb}/` : `https://letterboxd.com/search/${encodeURIComponent(f.original || f.title)}/`;
@@ -239,7 +258,7 @@ function renderFilm({ id, f, shows, wl }) {
   return `<article class="film${wl ? " wl" : ""}" data-id="${id}">
     <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(f.poster)}" alt="">` : ""}</div>
     <div class="body">
-      <h2 class="title">${esc(f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}</h2>
+      <h2 class="title">${esc(f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${notes}</h2>
       ${f.original && norm(f.original) !== norm(f.title) ? `<div class="orig">${esc(f.original)}</div>` : ""}
       <div class="meta">${meta} · <a href="${lb}" target="_blank" rel="noopener">Letterboxd</a> · <a href="${esc(f.url)}" target="_blank" rel="noopener">AdoroCinema</a></div>
       <button class="toggle" type="button">${OPEN.has(id) ? "▾ Masquer" : "▸ Voir"} les séances <small>${summary}</small></button>
@@ -284,6 +303,8 @@ function setupControls() {
   const ths = Object.entries(DATA.theaters).sort((a, b) => a[1].name.localeCompare(b[1].name));
   $("#theater").innerHTML += ths.map(([id, t]) => `<option value="${id}">${esc(t.name)}</option>`).join("");
   $("#theater").onchange = (e) => { state.theater = e.target.value; render(); };
+  $("#sort").onchange = (e) => { state.sort = e.target.value; store.set("sort", state.sort); render(); };
+  if (store.get("sort")) { state.sort = $("#sort").value = store.get("sort"); }
   $("#after").onchange = (e) => { state.after = e.target.value; render(); };
   $("#q").oninput = (e) => { state.q = e.target.value; render(); };
   $("#onlywl").onchange = (e) => { state.onlyWl = e.target.checked; render(); };

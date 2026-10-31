@@ -6,6 +6,7 @@ Usage : python3 scripts/scrape.py [--days 7] [--limit-theaters N]
 """
 import argparse
 import concurrent.futures as cf
+import gzip
 import datetime as dt
 import html
 import json
@@ -138,6 +139,43 @@ def lb_year(slug):
     return int(m.group(1)) if m else None
 
 
+def lb_details(slug):
+    """Note moyenne Letterboxd, nombre de notes et identifiant IMDb d'un film."""
+    try:
+        s = get(f"https://letterboxd.com/film/{slug}/", tries=2) or ""
+    except Exception:
+        return {}
+    out = {}
+    m = re.search(r'"ratingValue":([0-9.]+)', s)
+    if m:
+        out["lbRating"] = round(float(m.group(1)), 2)
+    m = re.search(r'"ratingCount":(\d+)', s)
+    if m:
+        out["lbVotes"] = int(m.group(1))
+    m = re.search(r"imdb\.com/title/(tt\d+)", s)
+    if m:
+        out["imdb"] = m.group(1)
+    return out
+
+
+def add_imdb_ratings(films):
+    """Notes IMDb depuis le fichier public d'IMDb (datasets.imdbws.com)."""
+    wanted = {f["imdb"]: f for f in films.values() if f.get("imdb")}
+    if not wanted:
+        return
+    try:
+        req = urllib.request.Request("https://datasets.imdbws.com/title.ratings.tsv.gz", headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=120) as r, gzip.open(r, "rt") as fh:
+            for line in fh:
+                tid, _, rest = line.partition("\t")
+                if tid in wanted:
+                    rating, votes = rest.strip().split("\t")
+                    wanted[tid]["imdbRating"] = float(rating)
+                    wanted[tid]["imdbVotes"] = int(votes)
+    except Exception as e:
+        print(f"Notes IMDb indisponibles : {e}")
+
+
 def resolve_letterboxd(film):
     """Devine le slug Letterboxd d'un film à partir de son titre original et de son année."""
     years = [film.get("year")]
@@ -208,6 +246,13 @@ def main():
             cache[f"{fid}:t"] = int(time.time())
     for fid, f in films.items():
         f["lb"] = cache.get(fid)
+
+    # Notes Letterboxd (et identifiant IMDb), relues à chaque exécution
+    with_lb = [f for f in films.values() if f["lb"]]
+    with cf.ThreadPoolExecutor(max_workers=4) as ex:
+        for f, info in zip(with_lb, ex.map(lambda f: lb_details(f["lb"]), with_lb)):
+            f.update(info)
+    add_imdb_ratings(films)
 
     used = {s[1] for s in shows}
     shows.sort(key=lambda s: (s[2], s[1]))
