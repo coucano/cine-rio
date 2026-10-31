@@ -84,7 +84,7 @@
   .legend { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
-  @media (min-width: 700px) { .controls { position: sticky; top: 0; } }
+  @media (min-width: 700px) and (min-height: 501px) { .controls { position: sticky; top: 0; } }
   #more { display: contents; }
   #areas { position: relative; }
   #areas summary { list-style: none; cursor: pointer; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font-size: 14px; }
@@ -101,7 +101,8 @@
   .th-name .bairro { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
   .mlinks { display: none; }
   #morebtn { display: none; }
-  @media (max-width: 699px) {
+  /* téléphone, y compris tenu à l'horizontale (écran peu haut) */
+  @media (max-width: 699px), (max-height: 500px) {
     /* téléphone : en-tête compact, filtres secondaires repliés derrière « Filtres » */
     header { padding: 12px 12px 4px; }
     h1 { font-size: 20px; }
@@ -402,6 +403,8 @@ function ago(t) {
   return d === 1 ? T.yesterday : T.dAgo(d);
 }
 
+const isPhone = () => matchMedia("(max-width: 699px), (max-height: 500px)").matches;
+
 // Sélection de quartiers (plusieurs possibles), regroupés par zone et mémorisés
 function setupAreas() {
   const byZone = new Map();
@@ -449,13 +452,13 @@ function setupAreas() {
   $("#areas").addEventListener("toggle", () => {
     const l = $("#arealist");
     l.style.left = "0px";
-    if (innerWidth < 700 || !$("#areas").open) return;
+    if (isPhone() || !$("#areas").open) return;
     const over = l.getBoundingClientRect().right - (innerWidth - 12);
     if (over > 0) l.style.left = -over + "px";
   });
   // fermer la liste en cliquant ailleurs (sur ordinateur)
   document.addEventListener("click", (e) => {
-    if (innerWidth >= 700 && !e.target.closest("#areas")) $("#areas").open = false;
+    if (!isPhone() && !e.target.closest("#areas")) $("#areas").open = false;
   });
   sync();
 }
