@@ -3,6 +3,8 @@
   "buildCommand": "",
   "cleanUrls": true,
   "functions": {
-    "api/watchlist.js": { "maxDuration": 60 }
-  }
+    "api/watchlist.js": { "maxDuration": 60 },
+    "api/cron-sync.js": { "maxDuration": 60 }
+  },
+  "crons": [{ "path": "/api/cron-sync", "schedule": "0 9 * * *" }]
 }

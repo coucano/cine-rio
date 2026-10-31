@@ -1,79 +1,41 @@
-// Fonction serveur (Vercel) : renvoie la watchlist publique d'un membre Letterboxd.
-// GET /api/watchlist?user=pseudo  ->  { user, films: [[slug, titre, année], ...] }
+// GET /api/watchlist?user=pseudo         -> watchlist gardée sur le site (lue sur Letterboxd la première fois)
+// GET /api/watchlist?user=pseudo&sync=1  -> relit la watchlist sur Letterboxd (au plus une fois par heure)
+// Réponse : { user, syncedAt, films: [[slug, titre, année], ...] }
 
-const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+const { getWatchlist } = require("./_letterboxd");
+const store = require("./_store");
 
-function decode(s) {
-  return s
-    .replace(/&#0*39;|&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
+const SYNC_COOLDOWN = 3600e3;
+
+function send(res, code, body) {
+  res.statusCode = code;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.end(JSON.stringify(body));
 }
 
-async function fetchPage(user, page) {
-  const url = `https://letterboxd.com/${user}/watchlist/` + (page > 1 ? `page/${page}/` : "");
-  for (let i = 0; i < 3; i++) {
-    const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en" } });
-    if (r.status === 404) return null;
-    if (r.ok) return r.text();
-    await new Promise((res) => setTimeout(res, 800 * (i + 1)));
-  }
-  throw new Error(`Letterboxd a répondu une erreur pour la page ${page}`);
-}
-
-function parse(html) {
-  const films = [];
-  const re = /data-component-class="LazyPoster"[^>]*?data-item-name="([^"]*)"[^>]*?data-item-slug="([^"]*)"/g;
-  let m;
-  while ((m = re.exec(html))) {
-    const name = decode(m[1]);
-    const y = name.match(/\s\((\d{4})\)$/);
-    films.push([m[2], y ? name.slice(0, y.index) : name, y ? +y[1] : null]);
-  }
-  return films;
-}
-
-async function getWatchlist(user) {
-  const first = await fetchPage(user, 1);
-  if (first === null) return null;
-  const pages = [...first.matchAll(/\/watchlist\/page\/(\d+)\//g)].map((m) => +m[1]);
-  const last = Math.min(Math.max(1, ...pages), 400); // 400 pages = 11 200 films au plus
-  const films = parse(first);
-  const rest = [];
-  for (let p = 2; p <= last; p++) rest.push(p);
-  // quelques pages à la fois pour ménager Letterboxd
-  const batch = rest.length > 60 ? 4 : 6;
-  for (let i = 0; i < rest.length; i += batch) {
-    const htmls = await Promise.all(rest.slice(i, i + batch).map((p) => fetchPage(user, p)));
-    for (const h of htmls) if (h) films.push(...parse(h));
-  }
-  return films;
-}
-
-async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const q = new URL(req.url, "http://x").searchParams;
   const user = (q.get("user") || "").trim().toLowerCase();
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  if (!/^[a-z0-9_]{1,40}$/.test(user)) {
-    res.statusCode = 400;
-    return res.end(JSON.stringify({ error: "Pseudo Letterboxd invalide" }));
-  }
+  if (!/^[a-z0-9_]{1,40}$/.test(user)) return send(res, 400, { error: "Pseudo Letterboxd invalide" });
   try {
-    const films = await getWatchlist(user);
-    if (films === null) {
-      res.statusCode = 404;
-      return res.end(JSON.stringify({ error: "Membre introuvable ou watchlist privée" }));
+    let rec = await store.load(user);
+    const wantSync = q.get("sync") === "1";
+    if (rec && wantSync && Date.now() - rec.t < SYNC_COOLDOWN) {
+      const min = Math.ceil((SYNC_COOLDOWN - (Date.now() - rec.t)) / 60e3);
+      return send(res, 429, { error: `Déjà synchronisée récemment, réessaie dans ${min} min`, user, syncedAt: rec.t, films: rec.films });
     }
-    res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=86400");
-    res.end(JSON.stringify({ user, films }));
+    if (!rec || wantSync) {
+      if (!(await store.allowFetch())) {
+        const body = { error: "Le site est très sollicité, réessaie dans une minute" };
+        return rec ? send(res, 429, { ...body, user, syncedAt: rec.t, films: rec.films }) : send(res, 503, body);
+      }
+      const films = await getWatchlist(user);
+      if (films === null) return send(res, 404, { error: "Membre introuvable ou watchlist privée" });
+      rec = await store.save(user, films);
+    }
+    send(res, 200, { user, syncedAt: rec.t, films: rec.films });
   } catch (e) {
-    res.statusCode = 502;
-    res.end(JSON.stringify({ error: String(e.message || e) }));
+    send(res, 502, { error: String(e.message || e) });
   }
-}
-
-module.exports = handler;
-module.exports.getWatchlist = getWatchlist;
+};
