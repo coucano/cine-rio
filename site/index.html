@@ -138,6 +138,7 @@
       <option value="imdb">Tri : note IMDb</option>
       <option value="n">Tri : nombre de séances</option>
     </select>
+    <select id="lang"><option value="">Toutes les langues</option></select>
     <select id="theater"><option value="">Tous les cinémas</option></select>
     <select id="after">
       <option value="">Toute la journée</option>
@@ -160,7 +161,16 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
-const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "", sort: "wl" };
+const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "", sort: "wl", lang: "" };
+const LANGS = {
+  ENGLISH: "anglais", FRENCH: "français", PORTUGUESE: "portugais", SPANISH: "espagnol", ITALIAN: "italien",
+  GERMAN: "allemand", JAPANESE: "japonais", KOREAN: "coréen", CHINESE: "chinois", MANDARIN: "mandarin",
+  CANTONESE: "cantonais", RUSSIAN: "russe", HEBREW: "hébreu", ARABIC: "arabe", DUTCH: "néerlandais",
+  CZECH: "tchèque", POLISH: "polonais", SWEDISH: "suédois", DANISH: "danois", NORWEGIAN: "norvégien",
+  FINNISH: "finnois", TURKISH: "turc", PERSIAN: "persan", HINDI: "hindi", TAMIL: "tamoul", GREEK: "grec",
+  ROMANIAN: "roumain", HUNGARIAN: "hongrois", UKRAINIAN: "ukrainien", THAI: "thaï", SILENT: "muet",
+};
+const langName = (l) => LANGS[l] || l.charAt(0) + l.slice(1).toLowerCase().replace(/_/g, " ");
 let DATA = null;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -256,7 +266,7 @@ function ago(t) {
 function updateMoreBtn() {
   // sur téléphone, rappelle combien de filtres repliés sont actifs
   const open = $("#more").classList.contains("open");
-  const n = [state.onlyWl, state.theater, state.after, state.q].filter(Boolean).length;
+  const n = [state.onlyWl, state.theater, state.after, state.q, state.lang].filter(Boolean).length;
   $("#morebtn").classList.toggle("on", open || n > 0);
   $("#morebtn").textContent = `Filtres${n ? ` (${n})` : ""} ${open ? "▴" : "▾"}`;
 }
@@ -278,6 +288,7 @@ function render() {
     byFilm.get(fid).push(s);
   }
   let films = [...byFilm.keys()].map((id) => ({ id, f: DATA.films[id], shows: byFilm.get(id) }));
+  if (state.lang) films = films.filter(({ f }) => (f.langs || []).includes(state.lang));
   if (q) films = films.filter(({ f }) => norm([f.title, f.original, f.fr, ...f.directors].join(" ")).includes(q));
   films.forEach((x) => (x.wl = inWatchlist(x.f)));
   if (state.onlyWl) films = films.filter((x) => x.wl);
@@ -313,7 +324,8 @@ function renderFilm({ id, f, shows, wl }) {
     f.lbRating && `<span class="note lb" title="${f.lbVotes || ""} notes">★ ${f.lbRating.toFixed(1)}</span>`,
     f.imdbRating && `<span class="note imdb" title="${f.imdbVotes || ""} votes">IMDb ${f.imdbRating.toFixed(1)}</span>`,
   ].filter(Boolean).join("");
-  const meta = [f.year, f.runtime, f.directors.length && "de " + f.directors.join(", "), f.genres.slice(0, 2).join(", ")]
+  const langs = (f.langs || []).map(langName).join(", ");
+  const meta = [f.year, f.runtime, langs && "VO " + langs, f.directors.length && "de " + f.directors.join(", "), f.genres.slice(0, 2).join(", ")]
     .filter(Boolean).map(esc).join(" · ");
   const lb = f.lb ? `https://letterboxd.com/film/${f.lb}/` : `https://letterboxd.com/search/${encodeURIComponent(f.original || f.title)}/`;
   const vers = new Set(shows.map((s) => s[3]));
@@ -381,6 +393,11 @@ function setupControls() {
 
   const ths = Object.entries(DATA.theaters).sort((a, b) => a[1].name.localeCompare(b[1].name));
   $("#theater").innerHTML += ths.map(([id, t]) => `<option value="${id}">${esc(t.name)}</option>`).join("");
+  const count = {};
+  for (const f of Object.values(DATA.films)) for (const l of f.langs || []) count[l] = (count[l] || 0) + 1;
+  $("#lang").innerHTML += Object.keys(count).sort((a, b) => count[b] - count[a])
+    .map((l) => `<option value="${l}">VO ${esc(langName(l))} (${count[l]} film${count[l] > 1 ? "s" : ""})</option>`).join("");
+  $("#lang").onchange = (e) => { state.lang = e.target.value; render(); };
   $("#theater").onchange = (e) => { state.theater = e.target.value; render(); };
   $("#morebtn").onclick = () => {
     $("#more").classList.toggle("open");

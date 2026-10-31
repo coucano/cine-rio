@@ -116,6 +116,7 @@ def movie_info(m):
         "genres": [g.get("translate") for g in m.get("genres") or [] if g.get("translate")],
         "directors": directors,
         "countries": [c.get("localizedName") or c.get("name") for c in m.get("countries") or []],
+        "langs": m.get("languages") or [],
         "poster": (m.get("poster") or {}).get("url"),
         "url": f"{BASE}/filmes/filme-{m['internalId']}/",
     }
