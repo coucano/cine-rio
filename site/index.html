@@ -71,6 +71,7 @@
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
   @media (min-width: 700px) { .controls { position: sticky; top: 0; } }
   #more { display: contents; }
+  .mlinks { display: none; }
   #morebtn { display: none; }
   @media (max-width: 699px) {
     /* téléphone : en-tête compact, filtres secondaires repliés derrière « Filtres » */
@@ -97,6 +98,9 @@
     .badge, .note { font-size: 10px; padding: 1px 6px; margin-left: 4px; }
     .orig, .meta { font-size: 12px; }
     .meta { margin-bottom: 2px; }
+    /* sur téléphone : pas de genre, liens visibles seulement quand le film est déplié */
+    .meta .genre, .meta .links { display: none; }
+    .shows .mlinks { display: block; margin: 4px 0 0; }
     .toggle { padding: 6px 0 2px; }
     /* les séances prennent toute la largeur de la carte, sous l'affiche */
     .film { flex-wrap: wrap; }
@@ -325,9 +329,11 @@ function renderFilm({ id, f, shows, wl }) {
     f.imdbRating && `<span class="note imdb" title="${f.imdbVotes || ""} votes">IMDb ${f.imdbRating.toFixed(1)}</span>`,
   ].filter(Boolean).join("");
   const langs = (f.langs || []).map(langName).join(", ");
-  const meta = [f.year, f.runtime, langs && "VO " + langs, f.directors.length && "de " + f.directors.join(", "), f.genres.slice(0, 2).join(", ")]
-    .filter(Boolean).map(esc).join(" · ");
+  const meta = [f.year, f.runtime, langs && "VO " + langs, f.directors.length && "de " + f.directors.join(", ")]
+    .filter(Boolean).map(esc).join(" · ")
+    + (f.genres.length ? `<span class="genre"> · ${esc(f.genres.slice(0, 2).join(", "))}</span>` : "");
   const lb = f.lb ? `https://letterboxd.com/film/${f.lb}/` : `https://letterboxd.com/search/${encodeURIComponent(f.original || f.title)}/`;
+  const links = `<a href="${lb}" target="_blank" rel="noopener">Letterboxd</a> · <a href="${esc(f.url)}" target="_blank" rel="noopener">AdoroCinema</a>`;
   const vers = new Set(shows.map((s) => s[3]));
   const summary = esc(`${shows.length} séance${shows.length > 1 ? "s" : ""} · ${ths.length} cinéma${ths.length > 1 ? "s" : ""} · `
     + [vers.has("vo") && "VO", vers.has("nac") && "brésilien", vers.has("dub") && "dublado"].filter(Boolean).join(", "));
@@ -336,9 +342,10 @@ function renderFilm({ id, f, shows, wl }) {
     <div class="body">
       <h2 class="title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${notes}</h2>
       ${otherTitles(f)}
-      <div class="meta">${meta} · <a href="${lb}" target="_blank" rel="noopener">Letterboxd</a> · <a href="${esc(f.url)}" target="_blank" rel="noopener">AdoroCinema</a></div>
+      <div class="meta">${meta}<span class="links"> · ${links}</span></div>
       <button class="toggle" type="button">${OPEN.has(id) ? "▾ Masquer" : "▸ Voir"} les séances <small>${summary}</small></button>
       <div class="shows"${OPEN.has(id) ? "" : " hidden"}>
+      <div class="meta mlinks">${links}</div>
       ${ths.map(([tid, days]) => `<div class="th">
         <div class="th-name">${esc(DATA.theaters[tid].name)}</div>
         ${[...days.entries()].map(([d, ss]) => `<div class="day">${state.day ? "" : `<b>${esc(dayLabel(d, true))}</b>`}
