@@ -44,6 +44,7 @@
   .poster img { width: 84px; border-radius: 4px; display: block; aspect-ratio: 2/3; object-fit: cover; background: #2c3440; }
   .body { flex: 1; min-width: 0; }
   .title { font-size: 18px; font-weight: 700; margin: 0; }
+  .orig small { font-style: normal; font-size: 10px; font-weight: 700; border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; margin-right: 2px; vertical-align: 1px; }
   .orig { color: var(--muted); font-style: italic; font-weight: 400; font-size: 14px; }
   .badge { display: inline-block; background: var(--wl); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; text-transform: uppercase; letter-spacing: .4px; }
   .note { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; background: #2c3440; }
@@ -214,7 +215,7 @@ function render() {
     byFilm.get(fid).push(s);
   }
   let films = [...byFilm.keys()].map((id) => ({ id, f: DATA.films[id], shows: byFilm.get(id) }));
-  if (q) films = films.filter(({ f }) => norm(f.title + " " + f.original + " " + f.directors.join(" ")).includes(q));
+  if (q) films = films.filter(({ f }) => norm([f.title, f.original, f.fr, ...f.directors].join(" ")).includes(q));
   films.forEach((x) => (x.wl = inWatchlist(x.f)));
   if (state.onlyWl) films = films.filter((x) => x.wl);
   const by = {
@@ -256,10 +257,10 @@ function renderFilm({ id, f, shows, wl }) {
   const summary = esc(`${shows.length} séance${shows.length > 1 ? "s" : ""} · ${ths.length} cinéma${ths.length > 1 ? "s" : ""} · `
     + [vers.has("vo") && "VO", vers.has("nac") && "brésilien", vers.has("dub") && "dublado"].filter(Boolean).join(", "));
   return `<article class="film${wl ? " wl" : ""}" data-id="${id}">
-    <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(f.poster)}" alt="">` : ""}</div>
+    <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(posterUrl(f.poster))}" alt="">` : ""}</div>
     <div class="body">
-      <h2 class="title">${esc(f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${notes}</h2>
-      ${f.original && norm(f.original) !== norm(f.title) ? `<div class="orig">${esc(f.original)}</div>` : ""}
+      <h2 class="title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${notes}</h2>
+      ${otherTitles(f)}
       <div class="meta">${meta} · <a href="${lb}" target="_blank" rel="noopener">Letterboxd</a> · <a href="${esc(f.url)}" target="_blank" rel="noopener">AdoroCinema</a></div>
       <button class="toggle" type="button">${OPEN.has(id) ? "▾ Masquer" : "▸ Voir"} les séances <small>${summary}</small></button>
       <div class="shows"${OPEN.has(id) ? "" : " hidden"}>
@@ -271,6 +272,21 @@ function renderFilm({ id, f, shows, wl }) {
       </div>
     </div>
   </article>`;
+}
+
+function posterUrl(u) {
+  // vignette redimensionnée par le serveur d'images d'AdoroCinema
+  return u.startsWith("data:") ? u : u.replace(/(acsta\.net)\/(?!c_)/, "$1/c_160_213/");
+}
+
+function otherTitles(f) {
+  // titre VO en titre principal, puis les titres français et brésilien s'ils diffèrent
+  const seen = new Set([norm(f.original || f.title)]);
+  const out = [];
+  for (const [flag, t] of [["FR", f.fr], ["BR", f.title]]) {
+    if (t && !seen.has(norm(t))) { seen.add(norm(t)); out.push(`<span><small>${flag}</small> ${esc(t)}</span>`); }
+  }
+  return out.length ? `<div class="orig">${out.join(" · ")}</div>` : "";
 }
 
 function renderTime(s) {

@@ -22,6 +22,7 @@ CITY_ID = "296781"  # Rio de Janeiro
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "data", "showtimes.json")
+FR_CACHE = os.path.join(ROOT, "site", "data", "titres-fr.json")
 LB_CACHE = os.path.join(ROOT, "site", "data", "letterboxd-map.json")
 
 
@@ -158,6 +159,19 @@ def lb_details(slug):
     return out
 
 
+def allocine_title(fid):
+    """Titre français : AlloCiné partage les identifiants de films d'AdoroCinema."""
+    try:
+        s = get(f"https://www.allocine.fr/film/fichefilm_gen_cfilm={fid}.html", tries=2)
+    except Exception:
+        return None
+    m = s and re.search(r'<meta property="og:title" content="([^"]+)"', s)
+    if not m:
+        return None
+    t = html.unescape(m.group(1))
+    return re.sub(r"\s*-\s*(film|série)?\s*\d{4}.*$|\s*-\s*AlloCiné$", "", t).strip() or None
+
+
 def add_imdb_ratings(films):
     """Notes IMDb depuis le fichier public d'IMDb (datasets.imdbws.com)."""
     wanted = {f["imdb"]: f for f in films.values() if f.get("imdb")}
@@ -253,6 +267,22 @@ def main():
         for f, info in zip(with_lb, ex.map(lambda f: lb_details(f["lb"]), with_lb)):
             f.update(info)
     add_imdb_ratings(films)
+
+    # Titres français, en cache (ils ne changent pas)
+    try:
+        fr_cache = json.load(open(FR_CACHE))
+    except Exception:
+        fr_cache = {}
+    todo = [fid for fid in films if fid not in fr_cache]
+    with cf.ThreadPoolExecutor(max_workers=4) as ex:
+        for fid, t in zip(todo, ex.map(allocine_title, todo)):
+            if t:
+                fr_cache[fid] = t
+    for fid, f in films.items():
+        if fr_cache.get(fid):
+            f["fr"] = fr_cache[fid]
+    with open(FR_CACHE, "w") as fh:
+        json.dump(fr_cache, fh, ensure_ascii=False, indent=0, sort_keys=True)
 
     used = {s[1] for s in shows}
     shows.sort(key=lambda s: (s[2], s[1]))
