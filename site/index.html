@@ -48,7 +48,10 @@
   .badge { display: inline-block; background: var(--wl); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; vertical-align: 3px; margin-left: 6px; text-transform: uppercase; letter-spacing: .4px; }
   .meta { color: var(--muted); font-size: 13px; margin: 2px 0 6px; }
   .meta a { color: var(--muted); }
-  .th { margin-top: 8px; }
+  .film { cursor: pointer; }
+  .toggle { background: none; border: 0; padding: 4px 0 0; color: var(--text); font-weight: 600; font-size: 14px; }
+  .toggle small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .th { margin-top: 8px; cursor: auto; }
   .th-name { font-weight: 600; font-size: 14px; }
   .th-name small { color: var(--muted); font-weight: 400; }
   .day { display: flex; gap: 8px; align-items: baseline; margin-top: 3px; flex-wrap: wrap; }
@@ -117,7 +120,8 @@ const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
-let WL = null; // { slugs:Set, titles:Map(norm -> [years]) }
+let WL = null;
+const OPEN = new Set(); // films dont les séances sont dépliées // { slugs:Set, titles:Map(norm -> [years]) }
 
 const norm = (s) => (s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
   .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
@@ -229,17 +233,23 @@ function renderFilm({ id, f, shows, wl }) {
   const meta = [f.year, f.runtime, f.directors.length && "de " + f.directors.join(", "), f.genres.slice(0, 2).join(", ")]
     .filter(Boolean).map(esc).join(" · ");
   const lb = f.lb ? `https://letterboxd.com/film/${f.lb}/` : `https://letterboxd.com/search/${encodeURIComponent(f.original || f.title)}/`;
-  return `<article class="film${wl ? " wl" : ""}">
+  const vers = new Set(shows.map((s) => s[3]));
+  const summary = esc(`${shows.length} séance${shows.length > 1 ? "s" : ""} · ${ths.length} cinéma${ths.length > 1 ? "s" : ""} · `
+    + [vers.has("vo") && "VO", vers.has("nac") && "brésilien", vers.has("dub") && "dublado"].filter(Boolean).join(", "));
+  return `<article class="film${wl ? " wl" : ""}" data-id="${id}">
     <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(f.poster)}" alt="">` : ""}</div>
     <div class="body">
       <h2 class="title">${esc(f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}</h2>
       ${f.original && norm(f.original) !== norm(f.title) ? `<div class="orig">${esc(f.original)}</div>` : ""}
       <div class="meta">${meta} · <a href="${lb}" target="_blank" rel="noopener">Letterboxd</a> · <a href="${esc(f.url)}" target="_blank" rel="noopener">AdoroCinema</a></div>
+      <button class="toggle" type="button">${OPEN.has(id) ? "▾ Masquer" : "▸ Voir"} les séances <small>${summary}</small></button>
+      <div class="shows"${OPEN.has(id) ? "" : " hidden"}>
       ${ths.map(([tid, days]) => `<div class="th">
         <div class="th-name">${esc(DATA.theaters[tid].name)}</div>
         ${[...days.entries()].map(([d, ss]) => `<div class="day">${state.day ? "" : `<b>${esc(dayLabel(d, true))}</b>`}
           <span class="times">${ss.map(renderTime).join("")}</span></div>`).join("")}
       </div>`).join("")}
+      </div>
     </div>
   </article>`;
 }
@@ -277,6 +287,14 @@ function setupControls() {
   $("#after").onchange = (e) => { state.after = e.target.value; render(); };
   $("#q").oninput = (e) => { state.q = e.target.value; render(); };
   $("#onlywl").onchange = (e) => { state.onlyWl = e.target.checked; render(); };
+  $("#list").onclick = (e) => {
+    if (e.target.closest("a, .shows")) return;
+    const card = e.target.closest(".film"); if (!card) return;
+    const id = card.dataset.id, open = !OPEN.has(id);
+    open ? OPEN.add(id) : OPEN.delete(id);
+    card.querySelector(".shows").hidden = !open;
+    card.querySelector(".toggle").firstChild.textContent = open ? "▾ Masquer les séances " : "▸ Voir les séances ";
+  };
   $("#userform").onsubmit = (e) => { e.preventDefault(); loadWatchlist($("#user").value); };
 
   const g = new Date(DATA.generated);
