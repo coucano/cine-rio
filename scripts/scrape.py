@@ -15,6 +15,7 @@ import re
 import time
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 
 BASE = "https://www.adorocinema.com"
@@ -23,6 +24,7 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chr
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "data", "showtimes.json")
 FR_CACHE = os.path.join(ROOT, "site", "data", "titres-fr.json")
+CORRECTIONS = os.path.join(ROOT, "scripts", "corrections-letterboxd.json")
 LB_CACHE = os.path.join(ROOT, "site", "data", "letterboxd-map.json")
 
 
@@ -252,6 +254,61 @@ def add_imdb_ratings(films):
         print(f"Notes IMDb indisponibles : {e}")
 
 
+def wikidata_letterboxd(fids):
+    """Slugs Letterboxd via Wikidata : les films y sont reliés à leur fiche AlloCiné
+    (mêmes numéros qu'AdoroCinema) et à Letterboxd, TMDB ou IMDb."""
+    if not fids:
+        return {}
+    query = """SELECT ?ac ?lb ?tmdb ?imdb WHERE {
+      VALUES ?ac { %s }
+      ?f wdt:P1265 ?ac.
+      OPTIONAL { ?f wdt:P6127 ?lb. } OPTIONAL { ?f wdt:P4947 ?tmdb. } OPTIONAL { ?f wdt:P345 ?imdb. }
+    }""" % " ".join(f'"{f}"' for f in fids)
+    try:
+        req = urllib.request.Request(
+            "https://query.wikidata.org/sparql",
+            data=urllib.parse.urlencode({"query": query}).encode(),
+            headers={"User-Agent": "cine-rio/1.0 (https://github.com/coucano/cine-rio)", "Accept": "application/sparql-results+json"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            rows = json.load(r)["results"]["bindings"]
+    except Exception as e:
+        print(f"Wikidata indisponible : {e}")
+        return {}
+    out = {}
+    for row in rows:
+        fid = row["ac"]["value"]
+        if fid in out:
+            continue
+        if "lb" in row:
+            out[fid] = row["lb"]["value"]
+            continue
+        # sinon, Letterboxd redirige /tmdb/<id>/ et /imdb/<id>/ vers la fiche du film
+        for kind in ("tmdb", "imdb"):
+            if kind in row:
+                slug = lb_redirect(f"https://letterboxd.com/{kind}/{row[kind]['value']}/")
+                if slug:
+                    out[fid] = slug
+                    break
+    return out
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+def lb_redirect(url):
+    try:
+        urllib.request.build_opener(_NoRedirect).open(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=30)
+    except urllib.error.HTTPError as e:
+        m = re.search(r"/film/([^/]+)/", e.headers.get("Location") or "")
+        return m.group(1) if m else None
+    except Exception:
+        return None
+    return None
+
+
 def resolve_letterboxd(film):
     """Devine le slug Letterboxd d'un film à partir de son titre original et de son année."""
     years = [film.get("year")]
@@ -316,6 +373,16 @@ def main():
         cache = json.load(open(LB_CACHE))
     except Exception:
         cache = {}
+    # 1) corrections manuelles, 2) Wikidata (correspondance exacte), 3) devinette par le titre
+    try:
+        corrections = json.load(open(CORRECTIONS))
+    except Exception:
+        corrections = {}
+    wiki = wikidata_letterboxd(list(films))
+    print(f"Wikidata : {len(wiki)} films reconnus")
+    for fid, slug in list(wiki.items()) + [(k, v) for k, v in corrections.items() if k in films]:
+        cache[fid] = slug
+        cache[f"{fid}:t"] = int(time.time())
     todo = [fid for fid in films if fid not in cache or (cache[fid] is None and cache.get(f"{fid}:t", 0) < time.time() - 3 * 86400)]
     print(f"{len(films)} films, {len(todo)} à chercher sur Letterboxd")
     with cf.ThreadPoolExecutor(max_workers=4) as ex:
