@@ -2,7 +2,8 @@ name: Mise à jour des séances
 
 on:
   schedule:
-    - cron: "0 8 * * *"   # chaque jour à 5h, heure de Rio
+    - cron: "0 8 * * *"    # chaque jour à 5h, heure de Rio
+    - cron: "0 17 * * *"   # et à 14h, pour les séances ajoutées dans la journée
   workflow_dispatch:
 
 permissions:

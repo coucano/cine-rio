@@ -65,4 +65,18 @@ async function allowFetch(max = 20) {
   return n <= max;
 }
 
-module.exports = { load, save, staleUsers, forgetInactive, allowFetch, hasDatabase: !!URL_ };
+// Limite par visiteur : au plus `max` lectures sur Letterboxd par heure depuis une même adresse,
+// pour qu'on ne puisse pas remplir la base avec des pseudos au hasard.
+// L'adresse n'est pas gardée en clair : seule une empreinte courte sert de compteur, effacé après deux heures.
+async function allowVisitor(ip, max = 10) {
+  const id = require("crypto").createHash("sha256").update("cine-rio:" + ip).digest("hex").slice(0, 16);
+  const key = `ip:${id}:${Math.floor(Date.now() / 3600e3)}`;
+  if (!URL_) {
+    memory.set(key, (memory.get(key) || 0) + 1);
+    return memory.get(key) <= max;
+  }
+  const [n] = await redis(["INCR", key], ["EXPIRE", key, 7200]);
+  return n <= max;
+}
+
+module.exports = { load, save, staleUsers, forgetInactive, allowFetch, allowVisitor, hasDatabase: !!URL_ };
