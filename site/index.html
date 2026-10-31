@@ -609,16 +609,16 @@ function posterUrl(u) {
   return u.startsWith("data:") ? u : u.replace(/(acsta\.net)\/(?!c_)/, "$1/c_160_213/");
 }
 
-// Titre principal : français sur la version française (s'il existe), VO sur la version brésilienne
+// Titre principal dans la langue du site : français (s'il existe) ou brésilien
 function mainTitle(f) {
-  return (UI === "fr" && f.fr) || f.original || f.title;
+  return (UI === "fr" ? f.fr : f.title) || f.original || f.title;
 }
 
 // puis, en dessous, les autres titres (VO, français, brésilien) s'ils diffèrent
 function otherTitles(f) {
   const seen = new Set([norm(mainTitle(f))]);
   const out = [];
-  const list = UI === "pt" ? [["BR", f.title]] : [["VO", f.original], ["BR", f.title]];
+  const list = UI === "pt" ? [["VO", f.original]] : [["VO", f.original], ["BR", f.title]];
   for (const [flag, t] of list) {
     if (t && !seen.has(norm(t))) { seen.add(norm(t)); out.push(`<span><small>${flag}</small> ${esc(t)}</span>`); }
   }
