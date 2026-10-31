@@ -40,13 +40,14 @@ async function getWatchlist(user) {
   const first = await fetchPage(user, 1);
   if (first === null) return null;
   const pages = [...first.matchAll(/\/watchlist\/page\/(\d+)\//g)].map((m) => +m[1]);
-  const last = Math.max(1, ...pages);
+  const last = Math.min(Math.max(1, ...pages), 400); // 400 pages = 11 200 films au plus
   const films = parse(first);
   const rest = [];
   for (let p = 2; p <= last; p++) rest.push(p);
   // quelques pages à la fois pour ménager Letterboxd
-  for (let i = 0; i < rest.length; i += 6) {
-    const htmls = await Promise.all(rest.slice(i, i + 6).map((p) => fetchPage(user, p)));
+  const batch = rest.length > 60 ? 4 : 6;
+  for (let i = 0; i < rest.length; i += batch) {
+    const htmls = await Promise.all(rest.slice(i, i + batch).map((p) => fetchPage(user, p)));
     for (const h of htmls) if (h) films.push(...parse(h));
   }
   return films;

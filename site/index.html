@@ -86,7 +86,7 @@
   <form class="row" id="userform">
     <input id="user" type="text" placeholder="pseudo Letterboxd" autocomplete="off" autocapitalize="off" spellcheck="false">
     <button class="primary" type="submit">OK</button>
-    <span id="wlstatus"></span>
+    <span id="wlstatus" title="Clique sur OK pour recharger la watchlist"></span>
   </form>
   <div class="seg" id="version">
     <button data-v="all" class="on">Tout</button>
@@ -173,7 +173,7 @@ function setWatchlist(films) {
   }
 }
 
-async function loadWatchlist(user) {
+async function loadWatchlist(user, force) {
   const st = $("#wlstatus");
   user = user.trim().toLowerCase().replace(/^@/, "").replace(/.*letterboxd\.com\//, "").replace(/\/.*/, "");
   if (!user) { WL = null; st.textContent = ""; store.set("lbuser", null); render(); return; }
@@ -181,12 +181,18 @@ async function loadWatchlist(user) {
   if (window.EMBED_WATCHLIST && window.EMBED_WATCHLIST.user === user) {
     setWatchlist(window.EMBED_WATCHLIST.films);
   } else {
-    st.className = ""; st.textContent = "chargement de la watchlist…";
-    try {
+    // la watchlist est gardée 6 h dans le navigateur pour ne pas solliciter Letterboxd à chaque visite
+    let cached = null;
+    try { cached = JSON.parse(store.get("wl") || "null"); } catch {}
+    if (!force && cached && cached.user === user && Date.now() - cached.t < 6 * 3600e3) {
+      setWatchlist(cached.films);
+    } else try {
+      st.className = ""; st.textContent = "chargement de la watchlist…";
       const r = await fetch("/api/watchlist?user=" + encodeURIComponent(user));
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "erreur");
       setWatchlist(j.films);
+      store.set("wl", JSON.stringify({ user, t: Date.now(), films: j.films }));
     } catch (e) {
       WL = null; st.className = "err"; st.textContent = "Watchlist introuvable (" + e.message + ")"; render(); return;
     }
@@ -194,6 +200,7 @@ async function loadWatchlist(user) {
   store.set("lbuser", user);
   try { const url = new URL(location.href); url.searchParams.set("u", user); history.replaceState(null, "", url); } catch {}
   const n = Object.values(DATA.films).filter(inWatchlist).length;
+  if (!WL.slugs.size) { st.className = "err"; st.textContent = `La watchlist de ${user} est vide ou privée`; render(); return; }
   st.className = "ok";
   st.textContent = `${WL.slugs.size} films dans la watchlist de ${user}, ${n} à l'affiche`;
   render();
@@ -332,7 +339,7 @@ function setupControls() {
     card.querySelector(".shows").hidden = !open;
     card.querySelector(".toggle").firstChild.textContent = open ? "▾ Masquer les séances " : "▸ Voir les séances ";
   };
-  $("#userform").onsubmit = (e) => { e.preventDefault(); loadWatchlist($("#user").value); };
+  $("#userform").onsubmit = (e) => { e.preventDefault(); loadWatchlist($("#user").value, true); };
 
   const g = new Date(DATA.generated);
   $("#updated").textContent = "Mis à jour le " + g.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }) + ".";
