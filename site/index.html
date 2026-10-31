@@ -71,6 +71,19 @@
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
   @media (min-width: 700px) { .controls { position: sticky; top: 0; } }
   #more { display: contents; }
+  #areas { position: relative; }
+  #areas summary { list-style: none; cursor: pointer; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font-size: 14px; }
+  #areas summary::-webkit-details-marker { display: none; }
+  #areas summary::after { content: " ▾"; color: var(--muted); }
+  #areas[open] summary::after { content: " ▴"; }
+  #arealist { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; width: 520px; max-width: 90vw; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .zone + .zone { margin-top: 8px; }
+  .zone .zl { font-weight: 700; font-size: 14px; }
+  .bairros { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 0 22px; }
+  .bairros label, .zone .zl { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; font-size: 14px; }
+  .bairros small { color: var(--muted); }
+  #areaclear { margin-top: 10px; font-size: 13px; padding: 4px 9px; }
+  .th-name .bairro { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
   .mlinks { display: none; }
   #morebtn { display: none; }
   @media (max-width: 699px) {
@@ -90,6 +103,8 @@
     #more { display: none; }
     #more.open { display: flex; flex-direction: column; gap: 8px; width: 100%; }
     #more select, #more input[type=search] { width: 100%; }
+    #arealist { position: static; width: auto; max-width: none; margin-top: 6px; box-shadow: none; }
+    .bairros label { min-height: 30px; }
     .seg button { padding: 7px 12px; }
     main { padding: 8px 10px 60px; }
     .film { gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
@@ -143,6 +158,10 @@
       <option value="n">Tri : nombre de séances</option>
     </select>
     <select id="lang"><option value="">Toutes les langues</option></select>
+    <details id="areas">
+      <summary id="areasum">Quartiers : tous</summary>
+      <div id="arealist"></div>
+    </details>
     <select id="theater"><option value="">Tous les cinémas</option></select>
     <select id="after">
       <option value="">Toute la journée</option>
@@ -165,7 +184,8 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
-const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "", sort: "wl", lang: "" };
+const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "", sort: "wl", lang: "", bairros: new Set() };
+const ZONES = ["Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste", "Autres"];
 const LANGS = {
   ENGLISH: "anglais", FRENCH: "français", PORTUGUESE: "portugais", SPANISH: "espagnol", ITALIAN: "italien",
   GERMAN: "allemand", JAPANESE: "japonais", KOREAN: "coréen", CHINESE: "chinois", MANDARIN: "mandarin",
@@ -267,10 +287,68 @@ function ago(t) {
   return d === 1 ? "hier" : `il y a ${d} jours`;
 }
 
+// Sélection de quartiers (plusieurs possibles), regroupés par zone et mémorisés
+function setupAreas() {
+  const byZone = new Map();
+  for (const t of Object.values(DATA.theaters)) {
+    const z = t.zone || "Autres", b = t.bairro || "Autres";
+    if (!byZone.has(z)) byZone.set(z, new Map());
+    byZone.get(z).set(b, (byZone.get(z).get(b) || 0) + 1);
+  }
+  const zones = [...byZone.keys()].sort((a, b) => ZONES.indexOf(a) - ZONES.indexOf(b));
+  $("#arealist").innerHTML = zones.map((z) => `<div class="zone">
+    <label class="zl"><input type="checkbox" data-zone="${esc(z)}"> ${esc(z)}</label>
+    <div class="bairros">${[...byZone.get(z)].sort((a, b) => a[0].localeCompare(b[0])).map(([b, n]) =>
+      `<label><input type="checkbox" data-b="${esc(b)}" data-z="${esc(z)}"> ${esc(b)} <small>${n}</small></label>`).join("")}</div>
+  </div>`).join("") + `<button id="areaclear" type="button">Tous les quartiers</button>`;
+
+  const known = new Set(Object.values(DATA.theaters).map((t) => t.bairro));
+  try { for (const b of JSON.parse(store.get("bairros") || "[]")) if (known.has(b)) state.bairros.add(b); } catch {}
+
+  const sync = () => {
+    document.querySelectorAll("#arealist [data-b]").forEach((c) => (c.checked = state.bairros.has(c.dataset.b)));
+    document.querySelectorAll("#arealist [data-zone]").forEach((c) => {
+      const bs = [...document.querySelectorAll(`#arealist [data-z="${CSS.escape(c.dataset.zone)}"]`)];
+      const on = bs.filter((x) => x.checked).length;
+      c.checked = on === bs.length; c.indeterminate = on > 0 && on < bs.length;
+    });
+    const sel = [...state.bairros];
+    $("#areasum").textContent = "Quartiers : " + (!sel.length ? "tous" : sel.length <= 2 ? sel.join(", ") : `${sel.length} choisis`);
+    store.set("bairros", JSON.stringify(sel));
+    // la liste des cinémas se limite aux quartiers choisis
+    const ths = Object.entries(DATA.theaters).filter(([, t]) => !sel.length || state.bairros.has(t.bairro))
+      .sort((a, b) => a[1].name.localeCompare(b[1].name));
+    if (state.theater && !ths.some(([id]) => id === state.theater)) state.theater = "";
+    $("#theater").innerHTML = `<option value="">Tous les cinémas</option>` +
+      ths.map(([id, t]) => `<option value="${id}"${id === state.theater ? " selected" : ""}>${esc(t.name)}</option>`).join("");
+  };
+  $("#arealist").onchange = (e) => {
+    const c = e.target;
+    if (c.dataset.b) c.checked ? state.bairros.add(c.dataset.b) : state.bairros.delete(c.dataset.b);
+    if (c.dataset.zone) document.querySelectorAll(`#arealist [data-z="${CSS.escape(c.dataset.zone)}"]`)
+      .forEach((x) => (c.checked ? state.bairros.add(x.dataset.b) : state.bairros.delete(x.dataset.b)));
+    sync(); render();
+  };
+  $("#areaclear").onclick = () => { state.bairros.clear(); sync(); render(); };
+  // garder la liste dans l'écran (sur ordinateur)
+  $("#areas").addEventListener("toggle", () => {
+    const l = $("#arealist");
+    l.style.left = "0px";
+    if (innerWidth < 700 || !$("#areas").open) return;
+    const over = l.getBoundingClientRect().right - (innerWidth - 12);
+    if (over > 0) l.style.left = -over + "px";
+  });
+  // fermer la liste en cliquant ailleurs (sur ordinateur)
+  document.addEventListener("click", (e) => {
+    if (innerWidth >= 700 && !e.target.closest("#areas")) $("#areas").open = false;
+  });
+  sync();
+}
+
 function updateMoreBtn() {
   // sur téléphone, rappelle combien de filtres repliés sont actifs
   const open = $("#more").classList.contains("open");
-  const n = [state.onlyWl, state.theater, state.after, state.q, state.lang].filter(Boolean).length;
+  const n = [state.onlyWl, state.theater, state.after, state.q, state.lang, state.bairros.size].filter(Boolean).length;
   $("#morebtn").classList.toggle("on", open || n > 0);
   $("#morebtn").textContent = `Filtres${n ? ` (${n})` : ""} ${open ? "▴" : "▾"}`;
 }
@@ -287,6 +365,7 @@ function render() {
     if (state.version === "vo" && ver === "dub") continue;
     if (state.version === "dub" && ver !== "dub") continue;
     if (tf && tid !== tf) continue;
+    if (state.bairros.size && !state.bairros.has(DATA.theaters[tid].bairro)) continue;
     if (state.after && +at.slice(11, 13) < +state.after) continue;
     if (!byFilm.has(fid)) byFilm.set(fid, []);
     byFilm.get(fid).push(s);
@@ -347,7 +426,7 @@ function renderFilm({ id, f, shows, wl }) {
       <div class="shows"${OPEN.has(id) ? "" : " hidden"}>
       <div class="meta mlinks">${links}</div>
       ${ths.map(([tid, days]) => `<div class="th">
-        <div class="th-name">${esc(DATA.theaters[tid].name)}</div>
+        <div class="th-name">${esc(DATA.theaters[tid].name)}${DATA.theaters[tid].bairro && !norm(DATA.theaters[tid].name).includes(norm(DATA.theaters[tid].bairro)) ? `<span class="bairro">${esc(DATA.theaters[tid].bairro)}</span>` : ""}</div>
         ${[...days.entries()].map(([d, ss]) => `<div class="day">${state.day ? "" : `<b>${esc(dayLabel(d, true))}</b>`}
           <span class="times">${ss.map(renderTime).join("")}</span></div>`).join("")}
       </div>`).join("")}
@@ -398,8 +477,7 @@ function setupControls() {
   const v = store.get("version");
   if (v) document.querySelector(`#version button[data-v="${v}"]`)?.click();
 
-  const ths = Object.entries(DATA.theaters).sort((a, b) => a[1].name.localeCompare(b[1].name));
-  $("#theater").innerHTML += ths.map(([id, t]) => `<option value="${id}">${esc(t.name)}</option>`).join("");
+  setupAreas();
   const count = {};
   for (const f of Object.values(DATA.films)) for (const l of f.langs || []) count[l] = (count[l] || 0) + 1;
   $("#lang").innerHTML += Object.keys(count).sort((a, b) => count[b] - count[a])

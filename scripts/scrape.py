@@ -26,6 +26,56 @@ FR_CACHE = os.path.join(ROOT, "site", "data", "titres-fr.json")
 LB_CACHE = os.path.join(ROOT, "site", "data", "letterboxd-map.json")
 
 
+# Quartier et zone de chaque cinéma (l'adresse d'AdoroCinema ne donne pas toujours le quartier)
+ZS, CE, ZN, BJ, ZO = "Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste"
+AREAS = {
+    "UCI New York City Center": ("Barra da Tijuca", BJ),
+    "Kinoplex West Shopping": ("Campo Grande", ZO),
+    "Cinesystem Bangu Shopping": ("Bangu", ZO),
+    "Kinoplex Sao Luiz": ("Catete", ZS),
+    "Kinoplex Nova America": ("Del Castilho", ZN),
+    "UCI ParkShopping Campo Grande": ("Campo Grande", ZO),
+    "Kinoplex Shopping Boulevard RJ": ("Vila Isabel", ZN),
+    "Kinoplex Tijuca": ("Tijuca", ZN),
+    "Kinoplex Madureira": ("Madureira", ZN),
+    "Cinesystem Via Brasil": ("Irajá", ZN),
+    "Cinemark Carioca Shopping": ("Vila da Penha", ZN),
+    "Kinoplex Via Parque": ("Barra da Tijuca", BJ),
+    "Cinesystem Ilha Plaza Shopping": ("Ilha do Governador", ZN),
+    "Cinemark Downtown": ("Barra da Tijuca", BJ),
+    "Kinoplex RioSul": ("Botafogo", ZS),
+    "Cinemark Botafogo": ("Botafogo", ZS),
+    "Cinesystem Belas Artes Botafogo": ("Botafogo", ZS),
+    "Cinemark Metropolitano Barra": ("Barra da Tijuca", BJ),
+    "Cinesystem Recreio Shopping": ("Recreio", BJ),
+    "CineCarioca Meier": ("Méier", ZN),
+    "Estação Claro Rio": ("Botafogo", ZS),
+    "Estação Claro Gávea": ("Gávea", ZS),
+    "Kinoplex Shopping Leblon": ("Leblon", ZS),
+    "Cinépolis Rio Design Barra": ("Barra da Tijuca", BJ),
+    "Cinesystem Américas Shopping": ("Recreio", BJ),
+    "Kinoplex Leblon (rua)": ("Leblon", ZS),
+    "Kinoplex Fashion Mall": ("São Conrado", ZS),
+    "Cinemark Village Mall": ("Barra da Tijuca", BJ),
+    "Cinesystem Parque Shopping Sulacap": ("Sulacap", ZO),
+    "Cine Santa": ("Santa Teresa", CE),
+    "Ponto Cine": ("Guadalupe", ZN),
+    "UCI ParkJacarepaguá": ("Jacarepaguá", BJ),
+    "Centro Cultural Justiça Federal": ("Centro", CE),
+    "Cineflix Center Shopping Rio": ("Jacarepaguá", BJ),
+    "Cine Carioca José Wilker": ("Laranjeiras", ZS),
+}
+
+
+def area_of(theater):
+    name = re.sub(r"\s+", " ", theater["name"])
+    if name in AREAS:
+        return AREAS[name]
+    # sinon : dernier morceau de l'adresse avant le code postal
+    m = re.search(r"-\s*([^-\d][^-]*?)\s+\d{4,5}-?\d{0,3}\s+Rio de Janeiro", theater.get("address") or "")
+    return (m.group(1).strip(), "Autres") if m else ("Autres", "Autres")
+
+
 def get(url, tries=3):
     for i in range(tries):
         try:
@@ -219,6 +269,8 @@ def main():
     days = [(today + dt.timedelta(days=i)).isoformat() for i in range(args.days)]
 
     theaters = list_theaters()
+    for t in theaters.values():
+        t["bairro"], t["zone"] = area_of(t)
     print(f"{len(theaters)} cinémas trouvés")
     tids = list(theaters)[: args.limit_theaters or None]
 
