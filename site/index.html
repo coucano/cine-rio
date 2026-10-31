@@ -99,6 +99,8 @@
   .bairros label, .zone .zl { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; font-size: 14px; }
   .bairros small { color: var(--muted); }
   #areaclear { margin-top: 10px; font-size: 13px; padding: 4px 9px; }
+  .thlink { text-decoration: none; }
+  .thlink:hover { text-decoration: underline; }
   .th-name .bairro { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
   .mlinks { display: none; }
   #morebtn { display: none; }
@@ -534,7 +536,7 @@ function renderByTheater(films) {
     const nShows = fl.reduce((n, x) => n + x.shows.length, 0), nWl = fl.filter((x) => x.wl).length;
     return `<article class="cine${nWl ? " wl" : ""}" data-tid="${tid}">
       <h2 class="title">${esc(t.name)}${t.bairro ? `<span class="bairro">${esc(t.bairro)}</span>` : ""}${nWl ? `<span class="badge">${T.wlCount(nWl)}</span>` : ""}</h2>
-      ${t.address ? `<div class="meta">${esc(t.address)}</div>` : ""}
+      <div class="meta">${t.address ? esc(t.address) + " · " : ""}<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.name + " " + (t.address || "Rio de Janeiro"))}" target="_blank" rel="noopener">Maps</a> · <a href="https://www.adorocinema.com/programacao/cinema-${tid}/" target="_blank" rel="noopener">AdoroCinema</a></div>
       <button class="toggle" type="button">${open ? T.hideFilms : T.showFilms}<small>${esc(T.films(fl.length) + " · " + T.sessions(nShows))}</small></button>
       <div class="cfilms"${open ? "" : " hidden"}>${fl.map(renderCineFilm).join("")}</div>
     </article>`;
@@ -602,7 +604,7 @@ function renderFilm({ id, f, shows, wl }) {
       <div class="shows"${OPEN.has(id) ? "" : " hidden"}>
       <div class="meta mlinks">${links}</div>
       ${ths.map(([tid, days]) => `<div class="th">
-        <div class="th-name">${esc(DATA.theaters[tid].name)}${DATA.theaters[tid].bairro && !norm(DATA.theaters[tid].name).includes(norm(DATA.theaters[tid].bairro)) ? `<span class="bairro">${esc(DATA.theaters[tid].bairro)}</span>` : ""}</div>
+        <div class="th-name"><a href="#" class="thlink" data-goto="${tid}">${esc(DATA.theaters[tid].name)}</a>${DATA.theaters[tid].bairro && !norm(DATA.theaters[tid].name).includes(norm(DATA.theaters[tid].bairro)) ? `<span class="bairro">${esc(DATA.theaters[tid].bairro)}</span>` : ""}</div>
         ${[...days.entries()].map(([d, ss]) => `<div class="day">${state.day ? "" : `<b>${esc(dayLabel(d, true))}</b>`}
           <span class="times">${ss.map((x) => renderTime(x, f)).join("")}</span></div>`).join("")}
       </div>`).join("")}
@@ -681,14 +683,23 @@ function setupControls() {
   $("#after").onchange = (e) => { state.after = e.target.value; render(); };
   $("#q").oninput = (e) => { state.q = e.target.value; render(); };
   $("#onlywl").onchange = (e) => { state.onlyWl = e.target.checked; render(); };
-  $("#view").onclick = (e) => {
-    const b = e.target.closest("button"); if (!b) return;
-    state.view = b.dataset.w; store.set("view", state.view);
-    document.querySelectorAll("#view button").forEach((x) => x.classList.toggle("on", x === b));
+  const setView = (w) => {
+    state.view = w; store.set("view", w);
+    document.querySelectorAll("#view button").forEach((x) => x.classList.toggle("on", x.dataset.w === w));
     render();
+  };
+  $("#view").onclick = (e) => { const b = e.target.closest("button"); if (b) setView(b.dataset.w); };
+  // nom d'un cinéma dans la vue par film : ouvre ce cinéma dans la vue par cinéma
+  const goToTheater = (tid) => {
+    OPENTH.clear(); OPENTH.add(tid);
+    setView("th");
+    const card = document.querySelector(`.cine[data-tid="${tid}"]`);
+    if (card) card.scrollIntoView({ block: "start" });
   };
   if (store.get("view") === "th") document.querySelector('#view button[data-w="th"]').click();
   $("#list").onclick = (e) => {
+    const go = e.target.closest("[data-goto]");
+    if (go) { e.preventDefault(); goToTheater(go.dataset.goto); return; }
     if (e.target.closest("a, .shows, .cfilms")) return;
     const cine = e.target.closest(".cine");
     if (cine) {
