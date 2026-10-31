@@ -15,6 +15,9 @@
   header { padding: 18px 16px 6px; max-width: 1000px; margin: 0 auto; }
   h1 { margin: 0; font-size: 24px; letter-spacing: .5px; }
   h1 span { color: var(--wl); }
+  header { position: relative; }
+  .langsw { position: absolute; right: 16px; top: 18px; }
+  .langsw button { padding: 4px 9px; font-size: 13px; }
   .sub { color: var(--muted); font-size: 13px; }
   .controls { z-index: 5; background: rgba(20,24,28,.97); border-bottom: 1px solid var(--line); }
   .controls .in { max-width: 1000px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
@@ -130,48 +133,49 @@
 <body>
 <header>
   <h1>Ciné <span>Rio</span></h1>
-  <div class="sub"><span class="intro">Les séances de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence. </span><span id="updated"></span></div>
+  <div class="seg langsw" id="uilang"><button data-l="fr">FR</button><button data-l="pt">PT</button></div>
+  <div class="sub"><span class="intro" data-i18n="intro"></span><span id="updated"></span></div>
 </header>
 
 <div class="controls"><div class="in">
   <form class="row" id="userform">
-    <input id="user" type="text" placeholder="pseudo Letterboxd" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <input id="user" type="text" data-i18n-ph="userPh" autocomplete="off" autocapitalize="off" spellcheck="false">
     <button class="primary" type="submit">OK</button>
     <span id="wlstatus"></span>
-    <button id="sync" type="button" hidden title="Relire ta watchlist sur Letterboxd (une fois toutes les 10 minutes au plus)">↻ Synchroniser</button>
+    <button id="sync" type="button" hidden data-i18n-title="syncTitle" data-i18n="syncBtn"></button>
   </form>
   <div class="row days" id="days"></div>
   <div class="row">
     <div class="seg" id="version">
-      <button data-v="all" class="on">Tout</button>
-      <button data-v="vo" title="Version originale sous-titrée, et films brésiliens">VO</button>
+      <button data-v="all" class="on" data-i18n="all"></button>
+      <button data-v="vo" data-i18n-title="voTitle">VO</button>
       <button data-v="dub">Dublado</button>
     </div>
-    <button id="morebtn" type="button">Filtres ▾</button>
+    <button id="morebtn" type="button"></button>
   </div>
   <div id="more">
-    <label class="chk"><input type="checkbox" id="onlywl"> Seulement ma watchlist</label>
+    <label class="chk"><input type="checkbox" id="onlywl"> <span data-i18n="onlyWl"></span></label>
     <select id="sort">
-      <option value="wl">Tri : watchlist, puis note</option>
-      <option value="lb">Tri : note Letterboxd</option>
-      <option value="imdb">Tri : note IMDb</option>
-      <option value="n">Tri : nombre de séances</option>
+      <option value="wl" data-i18n="sortWl"></option>
+      <option value="lb" data-i18n="sortLb"></option>
+      <option value="imdb" data-i18n="sortImdb"></option>
+      <option value="n" data-i18n="sortN"></option>
     </select>
-    <select id="lang"><option value="">Toutes les langues</option></select>
+    <select id="lang"><option value="" data-i18n="allLangs"></option></select>
     <details id="areas">
-      <summary id="areasum">Quartiers : tous</summary>
+      <summary id="areasum"></summary>
       <div id="arealist"></div>
     </details>
-    <select id="theater"><option value="">Tous les cinémas</option></select>
+    <select id="theater"></select>
     <select id="after">
-      <option value="">Toute la journée</option>
-      <option value="12">Après 12h</option><option value="17">Après 17h</option>
-      <option value="19">Après 19h</option><option value="21">Après 21h</option>
+      <option value="" data-i18n="allDay"></option>
+      <option value="12" data-i18n="after12"></option><option value="17" data-i18n="after17"></option>
+      <option value="19" data-i18n="after19"></option><option value="21" data-i18n="after21"></option>
     </select>
-    <input id="q" type="search" placeholder="Chercher un film">
+    <input id="q" type="search" data-i18n-ph="searchPh">
     <div class="legend">
-      <span><i style="background:var(--vo)"></i>VO légendée</span>
-      <span><i style="background:var(--nac)"></i>Film brésilien</span>
+      <span><i style="background:var(--vo)"></i><span data-i18n="legVo"></span></span>
+      <span><i style="background:var(--nac)"></i><span data-i18n="legNac"></span></span>
       <span><i style="background:var(--dub)"></i>Dublado</span>
     </div>
   </div>
@@ -179,13 +183,92 @@
 
 <main>
   <div class="count" id="count"></div>
-  <div id="list"><div class="empty">Chargement des séances…</div></div>
+  <div id="list"><div class="empty"></div></div>
 </main>
 
 <script>
 const $ = (s) => document.querySelector(s);
 const state = { day: "", version: "all", onlyWl: false, theater: "", after: "", q: "", sort: "wl", lang: "", bairros: new Set() };
 const ZONES = ["Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste", "Autres"];
+
+// Langue de l'interface : ?lang=, sinon choix mémorisé, sinon langue du navigateur
+const UI = (() => {
+  const q = new URLSearchParams(location.search).get("lang");
+  let l = q;
+  try { l = l || localStorage.getItem("uilang"); } catch {}
+  l = l || ((navigator.language || "").toLowerCase().startsWith("pt") ? "pt" : "fr");
+  return l === "pt" ? "pt" : "fr";
+})();
+const LOCALE = UI === "pt" ? "pt-BR" : "fr-FR";
+const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+const I18N = {
+  fr: {
+    intro: "Les séances de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence. ",
+    userPh: "pseudo Letterboxd", syncBtn: "↻ Synchroniser",
+    syncTitle: "Relire ta watchlist sur Letterboxd (une fois toutes les 10 minutes au plus)",
+    all: "Tout", voTitle: "Version originale sous-titrée, et films brésiliens",
+    filters: "Filtres", onlyWl: "Seulement ma watchlist",
+    sortWl: "Tri : watchlist, puis note", sortLb: "Tri : note Letterboxd", sortImdb: "Tri : note IMDb", sortN: "Tri : nombre de séances",
+    allLangs: "Toutes les langues", allTheaters: "Tous les cinémas",
+    allDay: "Toute la journée", after12: "Après 12h", after17: "Après 17h", after19: "Après 19h", after21: "Après 21h",
+    searchPh: "Chercher un film", legVo: "VO légendée", legNac: "Film brésilien", loading: "Chargement des séances…",
+    areas: "Quartiers", areasAll: "tous", areasN: (n) => `${n} choisis`, allAreas: "Tous les quartiers", other: "Autres",
+    wholeWeek: "Toute la semaine", today: "aujourd'hui", tomorrow: "demain",
+    wlLoading: "chargement de la watchlist…", wlSyncing: "synchronisation avec Letterboxd…",
+    wlNotFound: (e) => `Watchlist introuvable (${e})`, wlEmpty: (u) => `La watchlist de ${u} est vide ou privée`,
+    wlOk: (n, u, k) => `${n} films dans la watchlist de ${u}, ${k} à l'affiche`, synced: (a) => `synchronisée ${a}`,
+    err404: "membre introuvable ou watchlist privée", errBusy: "le site est très sollicité, réessaie dans une minute",
+    errCooldown: (m) => `Déjà synchronisée récemment, réessaie dans ${m} min`, errBad: "pseudo invalide",
+    now: "à l'instant", minAgo: (m) => `il y a ${m} min`, hAgo: (h) => `il y a ${h} h`, yesterday: "hier", dAgo: (d) => `il y a ${d} jours`,
+    films: (n) => plural(n, "film", "films"), ofWl: (n) => `, dont ${n} de ta watchlist`,
+    noWl: "Entre ton pseudo Letterboxd en haut pour voir ta watchlist.", noShows: "Aucune séance avec ces filtres.",
+    notes: "notes", votes: "votes", vo: "VO", by: "de", show: "▸ Voir les séances ", hide: "▾ Masquer les séances ",
+    sessions: (n) => plural(n, "séance", "séances"), cinemas: (n) => plural(n, "cinéma", "cinémas"),
+    verNac: "brésilien", verDub: "dublado", tipVo: "VO légendée", tipNac: "Film brésilien", tipDub: "Dublado",
+    updated: (d) => `Mis à jour le ${d}.`,
+  },
+  pt: {
+    intro: "As sessões da semana no Rio de Janeiro, com a sua watchlist do Letterboxd em destaque. ",
+    userPh: "usuário do Letterboxd", syncBtn: "↻ Sincronizar",
+    syncTitle: "Reler a sua watchlist no Letterboxd (no máximo uma vez a cada 10 minutos)",
+    all: "Todos", voTitle: "Versão original legendada, e filmes brasileiros",
+    filters: "Filtros", onlyWl: "Só a minha watchlist",
+    sortWl: "Ordem: watchlist, depois nota", sortLb: "Ordem: nota Letterboxd", sortImdb: "Ordem: nota IMDb", sortN: "Ordem: número de sessões",
+    allLangs: "Todos os idiomas", allTheaters: "Todos os cinemas",
+    allDay: "O dia todo", after12: "Depois das 12h", after17: "Depois das 17h", after19: "Depois das 19h", after21: "Depois das 21h",
+    searchPh: "Buscar um filme", legVo: "Legendado", legNac: "Filme brasileiro", loading: "Carregando as sessões…",
+    areas: "Bairros", areasAll: "todos", areasN: (n) => `${n} escolhidos`, allAreas: "Todos os bairros", other: "Outros",
+    wholeWeek: "A semana toda", today: "hoje", tomorrow: "amanhã",
+    wlLoading: "carregando a watchlist…", wlSyncing: "sincronizando com o Letterboxd…",
+    wlNotFound: (e) => `Watchlist não encontrada (${e})`, wlEmpty: (u) => `A watchlist de ${u} está vazia ou é privada`,
+    wlOk: (n, u, k) => `${n} filmes na watchlist de ${u}, ${k} em cartaz`, synced: (a) => `sincronizada ${a}`,
+    err404: "usuário não encontrado ou watchlist privada", errBusy: "o site está muito acessado, tente de novo em um minuto",
+    errCooldown: (m) => `Sincronizada há pouco, tente de novo em ${m} min`, errBad: "usuário inválido",
+    now: "agora mesmo", minAgo: (m) => `há ${m} min`, hAgo: (h) => `há ${h} h`, yesterday: "ontem", dAgo: (d) => `há ${d} dias`,
+    films: (n) => plural(n, "filme", "filmes"), ofWl: (n) => `, ${n} da sua watchlist`,
+    noWl: "Digite o seu usuário do Letterboxd lá em cima para ver a sua watchlist.", noShows: "Nenhuma sessão com esses filtros.",
+    notes: "notas", votes: "votos", vo: "VO", by: "de", show: "▸ Ver as sessões ", hide: "▾ Esconder as sessões ",
+    sessions: (n) => plural(n, "sessão", "sessões"), cinemas: (n) => plural(n, "cinema", "cinemas"),
+    verNac: "nacional", verDub: "dublado", tipVo: "Legendado", tipNac: "Filme brasileiro", tipDub: "Dublado",
+    updated: (d) => `Atualizado em ${d}.`,
+  },
+};
+const T = I18N[UI];
+// messages d'erreur du serveur, traduits d'après leur code
+const apiError = (j) => ({ notfound: T.err404, busy: T.errBusy, cooldown: T.errCooldown(j.min), invalid: T.errBad }[j.code] || j.error || "erreur");
+
+function applyStaticTexts() {
+  document.documentElement.lang = UI === "pt" ? "pt-BR" : "fr";
+  document.querySelectorAll("[data-i18n]").forEach((e) => (e.textContent = T[e.dataset.i18n]));
+  document.querySelectorAll("[data-i18n-ph]").forEach((e) => (e.placeholder = T[e.dataset.i18nPh]));
+  document.querySelectorAll("[data-i18n-title]").forEach((e) => (e.title = T[e.dataset.i18nTitle]));
+  document.querySelectorAll("#uilang button").forEach((b) => b.classList.toggle("on", b.dataset.l === UI));
+  $("#uilang").onclick = (e) => {
+    const b = e.target.closest("button"); if (!b || b.dataset.l === UI) return;
+    try { localStorage.setItem("uilang", b.dataset.l); } catch {}
+    const url = new URL(location.href); url.searchParams.delete("lang"); location.href = url;
+  };
+}
 const LANGS = {
   ENGLISH: "anglais", FRENCH: "français", PORTUGUESE: "portugais", SPANISH: "espagnol", ITALIAN: "italien",
   GERMAN: "allemand", JAPANESE: "japonais", KOREAN: "coréen", CHINESE: "chinois", MANDARIN: "mandarin",
@@ -194,7 +277,15 @@ const LANGS = {
   FINNISH: "finnois", TURKISH: "turc", PERSIAN: "persan", HINDI: "hindi", TAMIL: "tamoul", GREEK: "grec",
   ROMANIAN: "roumain", HUNGARIAN: "hongrois", UKRAINIAN: "ukrainien", THAI: "thaï", SILENT: "muet",
 };
-const langName = (l) => LANGS[l] || l.charAt(0) + l.slice(1).toLowerCase().replace(/_/g, " ");
+const LANGS_PT = {
+  ENGLISH: "inglês", FRENCH: "francês", PORTUGUESE: "português", SPANISH: "espanhol", ITALIAN: "italiano",
+  GERMAN: "alemão", JAPANESE: "japonês", KOREAN: "coreano", CHINESE: "chinês", MANDARIN: "mandarim",
+  CANTONESE: "cantonês", RUSSIAN: "russo", HEBREW: "hebraico", ARABIC: "árabe", DUTCH: "holandês",
+  CZECH: "tcheco", POLISH: "polonês", SWEDISH: "sueco", DANISH: "dinamarquês", NORWEGIAN: "norueguês",
+  FINNISH: "finlandês", TURKISH: "turco", PERSIAN: "persa", HINDI: "hindi", TAMIL: "tâmil", GREEK: "grego",
+  ROMANIAN: "romeno", HUNGARIAN: "húngaro", UKRAINIAN: "ucraniano", THAI: "tailandês", SILENT: "mudo",
+};
+const langName = (l) => (UI === "pt" ? LANGS_PT : LANGS)[l] || l.charAt(0) + l.slice(1).toLowerCase().replace(/_/g, " ");
 let DATA = null;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -214,10 +305,10 @@ function rioNow() {
 function dayLabel(d, short) {
   const today = rioNow().slice(0, 10);
   const tomorrow = new Date(Date.parse(today) + 864e5).toISOString().slice(0, 10);
-  if (d === today) return "aujourd'hui";
-  if (d === tomorrow) return "demain";
+  if (d === today) return T.today;
+  if (d === tomorrow) return T.tomorrow;
   const dt = new Date(d + "T12:00:00Z");
-  return dt.toLocaleDateString("fr-FR", short
+  return dt.toLocaleDateString(LOCALE, short
     ? { weekday: "short", day: "numeric", timeZone: "UTC" }
     : { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
 }
@@ -255,36 +346,35 @@ async function loadWatchlist(user, sync) {
   } else {
     // la watchlist est gardée sur le site et resynchronisée chaque semaine (ou via le bouton)
     try {
-      st.className = ""; st.textContent = sync ? "synchronisation avec Letterboxd…" : "chargement de la watchlist…";
+      st.className = ""; st.textContent = sync ? T.wlSyncing : T.wlLoading;
       const r = await fetch("/api/watchlist?user=" + encodeURIComponent(user) + (sync ? "&sync=1" : ""));
       const j = await r.json();
-      if (!r.ok && !j.films) throw new Error(j.error || "erreur");
-      if (!r.ok) note = " · " + j.error;
+      if (!r.ok && !j.films) throw new Error(apiError(j));
+      if (!r.ok) note = " · " + apiError(j);
       setWatchlist(j.films);
       syncedAt = j.syncedAt;
     } catch (e) {
-      WL = null; st.className = "err"; st.textContent = "Watchlist introuvable (" + e.message + ")"; render(); return;
+      WL = null; st.className = "err"; st.textContent = T.wlNotFound(e.message); render(); return;
     }
   }
   store.set("lbuser", user);
   try { const url = new URL(location.href); url.searchParams.set("u", user); history.replaceState(null, "", url); } catch {}
   $("#sync").hidden = !syncedAt;
-  if (!WL.slugs.size) { st.className = "err"; st.textContent = `La watchlist de ${user} est vide ou privée${note}`; render(); return; }
+  if (!WL.slugs.size) { st.className = "err"; st.textContent = T.wlEmpty(user) + note; render(); return; }
   const n = Object.values(DATA.films).filter(inWatchlist).length;
   st.className = "ok";
-  st.textContent = `${WL.slugs.size} films dans la watchlist de ${user}, ${n} à l'affiche` +
-    (syncedAt ? ` · synchronisée ${ago(syncedAt)}` : "") + note;
+  st.textContent = T.wlOk(WL.slugs.size, user, n) + (syncedAt ? " · " + T.synced(ago(syncedAt)) : "") + note;
   render();
 }
 
 function ago(t) {
   const min = Math.round((Date.now() - t) / 60e3);
-  if (min < 2) return "à l'instant";
-  if (min < 60) return `il y a ${min} min`;
+  if (min < 2) return T.now;
+  if (min < 60) return T.minAgo(min);
   const h = Math.round(min / 60);
-  if (h < 24) return `il y a ${h} h`;
+  if (h < 24) return T.hAgo(h);
   const d = Math.round(h / 24);
-  return d === 1 ? "hier" : `il y a ${d} jours`;
+  return d === 1 ? T.yesterday : T.dAgo(d);
 }
 
 // Sélection de quartiers (plusieurs possibles), regroupés par zone et mémorisés
@@ -297,10 +387,10 @@ function setupAreas() {
   }
   const zones = [...byZone.keys()].sort((a, b) => ZONES.indexOf(a) - ZONES.indexOf(b));
   $("#arealist").innerHTML = zones.map((z) => `<div class="zone">
-    <label class="zl"><input type="checkbox" data-zone="${esc(z)}"> ${esc(z)}</label>
+    <label class="zl"><input type="checkbox" data-zone="${esc(z)}"> ${esc(z === "Autres" ? T.other : z)}</label>
     <div class="bairros">${[...byZone.get(z)].sort((a, b) => a[0].localeCompare(b[0])).map(([b, n]) =>
       `<label><input type="checkbox" data-b="${esc(b)}" data-z="${esc(z)}"> ${esc(b)} <small>${n}</small></label>`).join("")}</div>
-  </div>`).join("") + `<button id="areaclear" type="button">Tous les quartiers</button>`;
+  </div>`).join("") + `<button id="areaclear" type="button">${T.allAreas}</button>`;
 
   const known = new Set(Object.values(DATA.theaters).map((t) => t.bairro));
   try { for (const b of JSON.parse(store.get("bairros") || "[]")) if (known.has(b)) state.bairros.add(b); } catch {}
@@ -313,13 +403,13 @@ function setupAreas() {
       c.checked = on === bs.length; c.indeterminate = on > 0 && on < bs.length;
     });
     const sel = [...state.bairros];
-    $("#areasum").textContent = "Quartiers : " + (!sel.length ? "tous" : sel.length <= 2 ? sel.join(", ") : `${sel.length} choisis`);
+    $("#areasum").textContent = T.areas + (UI === "pt" ? ": " : " : ") + (!sel.length ? T.areasAll : sel.length <= 2 ? sel.join(", ") : T.areasN(sel.length));
     store.set("bairros", JSON.stringify(sel));
     // la liste des cinémas se limite aux quartiers choisis
     const ths = Object.entries(DATA.theaters).filter(([, t]) => !sel.length || state.bairros.has(t.bairro))
       .sort((a, b) => a[1].name.localeCompare(b[1].name));
     if (state.theater && !ths.some(([id]) => id === state.theater)) state.theater = "";
-    $("#theater").innerHTML = `<option value="">Tous les cinémas</option>` +
+    $("#theater").innerHTML = `<option value="">${T.allTheaters}</option>` +
       ths.map(([id, t]) => `<option value="${id}"${id === state.theater ? " selected" : ""}>${esc(t.name)}</option>`).join("");
   };
   $("#arealist").onchange = (e) => {
@@ -350,7 +440,7 @@ function updateMoreBtn() {
   const open = $("#more").classList.contains("open");
   const n = [state.onlyWl, state.theater, state.after, state.q, state.lang, state.bairros.size].filter(Boolean).length;
   $("#morebtn").classList.toggle("on", open || n > 0);
-  $("#morebtn").textContent = `Filtres${n ? ` (${n})` : ""} ${open ? "▴" : "▾"}`;
+  $("#morebtn").textContent = `${T.filters}${n ? ` (${n})` : ""} ${open ? "▴" : "▾"}`;
 }
 
 function render() {
@@ -384,10 +474,10 @@ function render() {
   films.sort(by[state.sort] || by.wl);
 
   $("#count").textContent = films.length
-    ? `${films.length} film${films.length > 1 ? "s" : ""}` + (WL ? `, dont ${films.filter((x) => x.wl).length} de ta watchlist` : "")
+    ? T.films(films.length) + (WL ? T.ofWl(films.filter((x) => x.wl).length) : "")
     : "";
   if (!films.length) {
-    $("#list").innerHTML = `<div class="empty">${state.onlyWl && !WL ? "Entre ton pseudo Letterboxd en haut pour voir ta watchlist." : "Aucune séance avec ces filtres."}</div>`;
+    $("#list").innerHTML = `<div class="empty">${state.onlyWl && !WL ? T.noWl : T.noShows}</div>`;
     return;
   }
   $("#list").innerHTML = films.map(renderFilm).join("");
@@ -404,25 +494,25 @@ function renderFilm({ id, f, shows, wl }) {
   }
   const ths = [...byTh.entries()].sort((a, b) => DATA.theaters[a[0]].name.localeCompare(DATA.theaters[b[0]].name));
   const notes = [
-    f.lbRating && `<span class="note lb" title="${f.lbVotes || ""} notes">★ ${f.lbRating.toFixed(1)}</span>`,
-    f.imdbRating && `<span class="note imdb" title="${f.imdbVotes || ""} votes">IMDb ${f.imdbRating.toFixed(1)}</span>`,
+    f.lbRating && `<span class="note lb" title="${f.lbVotes || ""} ${T.notes}">★ ${f.lbRating.toFixed(1)}</span>`,
+    f.imdbRating && `<span class="note imdb" title="${f.imdbVotes || ""} ${T.votes}">IMDb ${f.imdbRating.toFixed(1)}</span>`,
   ].filter(Boolean).join("");
   const langs = (f.langs || []).map(langName).join(", ");
-  const meta = [f.year, f.runtime, langs && "VO " + langs, f.directors.length && "de " + f.directors.join(", ")]
+  const meta = [f.year, f.runtime, langs && T.vo + " " + langs, f.directors.length && T.by + " " + f.directors.join(", ")]
     .filter(Boolean).map(esc).join(" · ")
     + (f.genres.length ? `<span class="genre"> · ${esc(f.genres.slice(0, 2).join(", "))}</span>` : "");
   const lb = f.lb ? `https://letterboxd.com/film/${f.lb}/` : `https://letterboxd.com/search/${encodeURIComponent(f.original || f.title)}/`;
   const links = `<a href="${lb}" target="_blank" rel="noopener">Letterboxd</a> · <a href="${esc(f.url)}" target="_blank" rel="noopener">AdoroCinema</a>`;
   const vers = new Set(shows.map((s) => s[3]));
-  const summary = esc(`${shows.length} séance${shows.length > 1 ? "s" : ""} · ${ths.length} cinéma${ths.length > 1 ? "s" : ""} · `
-    + [vers.has("vo") && "VO", vers.has("nac") && "brésilien", vers.has("dub") && "dublado"].filter(Boolean).join(", "));
+  const summary = esc(`${T.sessions(shows.length)} · ${T.cinemas(ths.length)} · `
+    + [vers.has("vo") && "VO", vers.has("nac") && T.verNac, vers.has("dub") && T.verDub].filter(Boolean).join(", "));
   return `<article class="film${wl ? " wl" : ""}" data-id="${id}">
     <div class="poster">${f.poster ? `<img loading="lazy" src="${esc(posterUrl(f.poster))}" alt="">` : ""}</div>
     <div class="body">
       <h2 class="title">${esc(f.original || f.title)}${wl ? '<span class="badge">Watchlist</span>' : ""}${notes}</h2>
       ${otherTitles(f)}
       <div class="meta">${meta}<span class="links"> · ${links}</span></div>
-      <button class="toggle" type="button">${OPEN.has(id) ? "▾ Masquer" : "▸ Voir"} les séances <small>${summary}</small></button>
+      <button class="toggle" type="button">${OPEN.has(id) ? T.hide : T.show}<small>${summary}</small></button>
       <div class="shows"${OPEN.has(id) ? "" : " hidden"}>
       <div class="meta mlinks">${links}</div>
       ${ths.map(([tid, days]) => `<div class="th">
@@ -444,7 +534,7 @@ function otherTitles(f) {
   // titre VO en titre principal, puis les titres français et brésilien s'ils diffèrent
   const seen = new Set([norm(f.original || f.title)]);
   const out = [];
-  for (const [flag, t] of [["FR", f.fr], ["BR", f.title]]) {
+  for (const [flag, t] of UI === "pt" ? [["BR", f.title]] : [["FR", f.fr], ["BR", f.title]]) {
     if (t && !seen.has(norm(t))) { seen.add(norm(t)); out.push(`<span><small>${flag}</small> ${esc(t)}</span>`); }
   }
   return out.length ? `<div class="orig">${out.join(" · ")}</div>` : "";
@@ -454,13 +544,13 @@ function renderTime(s) {
   const [, , at, ver, extra] = s;
   const tag = { vo: "VO", nac: "", dub: "DUB" }[ver];
   const ex = (extra || []).filter((e) => e !== "DIGITAL").join(" ");
-  return `<span class="t ${ver}" title="${{ vo: "VO légendée", nac: "Film brésilien", dub: "Dublado" }[ver]}">${at.slice(11, 16)}${tag || ex ? `<sup>${esc([tag, ex].filter(Boolean).join(" "))}</sup>` : ""}</span>`;
+  return `<span class="t ${ver}" title="${{ vo: T.tipVo, nac: T.tipNac, dub: T.tipDub }[ver]}">${at.slice(11, 16)}${tag || ex ? `<sup>${esc([tag, ex].filter(Boolean).join(" "))}</sup>` : ""}</span>`;
 }
 
 function setupControls() {
   const today = rioNow().slice(0, 10);
   const days = DATA.days.filter((d) => d >= today);
-  $("#days").innerHTML = `<button data-d="" >Toute la semaine</button>` +
+  $("#days").innerHTML = `<button data-d="">${T.wholeWeek}</button>` +
     days.map((d) => `<button data-d="${d}">${esc(dayLabel(d, true))}</button>`).join("");
   // le soir, on affiche directement demain
   state.day = (+rioNow().slice(11, 13) >= 21 && days[1]) || days[0] || "";
@@ -481,7 +571,7 @@ function setupControls() {
   const count = {};
   for (const f of Object.values(DATA.films)) for (const l of f.langs || []) count[l] = (count[l] || 0) + 1;
   $("#lang").innerHTML += Object.keys(count).sort((a, b) => count[b] - count[a])
-    .map((l) => `<option value="${l}">VO ${esc(langName(l))} (${count[l]} film${count[l] > 1 ? "s" : ""})</option>`).join("");
+    .map((l) => `<option value="${l}">VO ${esc(langName(l))} (${T.films(count[l])})</option>`).join("");
   $("#lang").onchange = (e) => { state.lang = e.target.value; render(); };
   $("#theater").onchange = (e) => { state.theater = e.target.value; render(); };
   $("#morebtn").onclick = () => {
@@ -499,16 +589,18 @@ function setupControls() {
     const id = card.dataset.id, open = !OPEN.has(id);
     open ? OPEN.add(id) : OPEN.delete(id);
     card.querySelector(".shows").hidden = !open;
-    card.querySelector(".toggle").firstChild.textContent = open ? "▾ Masquer les séances " : "▸ Voir les séances ";
+    card.querySelector(".toggle").firstChild.textContent = open ? T.hide : T.show;
   };
   $("#userform").onsubmit = (e) => { e.preventDefault(); loadWatchlist($("#user").value); };
   $("#sync").onclick = () => loadWatchlist($("#user").value, true);
 
   const g = new Date(DATA.generated);
-  $("#updated").textContent = "Mis à jour le " + g.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }) + ".";
+  $("#updated").textContent = T.updated(g.toLocaleString(LOCALE, { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }));
 }
 
 (async function init() {
+  applyStaticTexts();
+  $("#list").firstElementChild.textContent = T.loading;
   DATA = window.EMBED_DATA || await (await fetch("data/showtimes.json", { cache: "no-cache" })).json();
   setupControls();
   render();

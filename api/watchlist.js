@@ -17,21 +17,21 @@ function send(res, code, body) {
 module.exports = async function handler(req, res) {
   const q = new URL(req.url, "http://x").searchParams;
   const user = (q.get("user") || "").trim().toLowerCase();
-  if (!/^[a-z0-9_]{1,40}$/.test(user)) return send(res, 400, { error: "Pseudo Letterboxd invalide" });
+  if (!/^[a-z0-9_]{1,40}$/.test(user)) return send(res, 400, { code: "invalid", error: "Pseudo Letterboxd invalide" });
   try {
     let rec = await store.load(user);
     const wantSync = q.get("sync") === "1";
     if (rec && wantSync && Date.now() - rec.t < SYNC_COOLDOWN) {
       const min = Math.ceil((SYNC_COOLDOWN - (Date.now() - rec.t)) / 60e3);
-      return send(res, 429, { error: `Déjà synchronisée récemment, réessaie dans ${min} min`, user, syncedAt: rec.t, films: rec.films });
+      return send(res, 429, { code: "cooldown", min, error: `Déjà synchronisée récemment, réessaie dans ${min} min`, user, syncedAt: rec.t, films: rec.films });
     }
     if (!rec || wantSync) {
       if (!(await store.allowFetch())) {
-        const body = { error: "Le site est très sollicité, réessaie dans une minute" };
+        const body = { code: "busy", error: "Le site est très sollicité, réessaie dans une minute" };
         return rec ? send(res, 429, { ...body, user, syncedAt: rec.t, films: rec.films }) : send(res, 503, body);
       }
       const synced = await syncUser(user, rec);
-      if (synced === null) return send(res, 404, { error: "Membre introuvable ou watchlist privée" });
+      if (synced === null) return send(res, 404, { code: "notfound", error: "Membre introuvable ou watchlist privée" });
       rec = synced;
     }
     send(res, 200, { user, syncedAt: rec.t, stored: store.hasDatabase, films: rec.films });
