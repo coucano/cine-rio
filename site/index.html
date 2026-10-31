@@ -78,6 +78,7 @@
   .day b { font-size: 12px; color: var(--muted); font-weight: 600; min-width: 64px; text-transform: capitalize; }
   .times { display: flex; flex-wrap: wrap; gap: 5px; }
   .t { font-size: 13px; padding: 2px 7px; border-radius: 4px; background: #2c3440; border-left: 3px solid var(--vo); font-variant-numeric: tabular-nums; text-decoration: none; }
+  a.t.buy:hover { background: #3d4a57; }
   .t.dub { border-left-color: var(--dub); }
   .t.nac { border-left-color: var(--nac); }
   .t sup { font-size: 9px; color: var(--muted); margin-left: 3px; }
@@ -194,6 +195,7 @@
       <span><i style="background:var(--vo)"></i><span data-i18n="legVo"></span></span>
       <span><i style="background:var(--nac)"></i><span data-i18n="legNac"></span></span>
       <span><i style="background:var(--dub)"></i>Dublado</span>
+      <span data-i18n="buyHint"></span>
     </div>
   </div>
 </div></div>
@@ -245,6 +247,7 @@ const I18N = {
     updated: (d) => `Mis à jour le ${d}.`,
     viewFilm: "Par film", viewTh: "Par cinéma", showFilms: "▸ Voir les films ", hideFilms: "▾ Masquer les films ",
     wlCount: (n) => `${n} de ta watchlist`,
+    buy: "acheter sa place sur Ingresso.com", buyHint: "Touche un horaire pour acheter ta place.",
     reprise: "Reprise", repriseTip: "Film ancien qui ressort en salles",
     preview: "Avant-première", previewTip: (d) => `Sortie en salles le ${d}`,
   },
@@ -274,6 +277,7 @@ const I18N = {
     updated: (d) => `Atualizado em ${d}.`,
     viewFilm: "Por filme", viewTh: "Por cinema", showFilms: "▸ Ver os filmes ", hideFilms: "▾ Esconder os filmes ",
     wlCount: (n) => `${n} da sua watchlist`,
+    buy: "comprar ingresso no Ingresso.com", buyHint: "Toque num horário para comprar o ingresso.",
     reprise: "Relançamento", repriseTip: "Filme antigo de volta aos cinemas",
     preview: "Pré-estreia", previewTip: (d) => `Estreia nos cinemas em ${d}`,
   },
@@ -633,7 +637,12 @@ function renderTime(s, f) {
   const pre = f && f.release && at.slice(0, 10) < f.release ? (UI === "pt" ? "PRÉ" : "AVP") : "";
   const tag = [{ vo: "VO", nac: "", dub: "DUB" }[ver], pre].filter(Boolean).join(" ");
   const ex = (extra || []).filter((e) => e !== "DIGITAL").join(" ");
-  return `<span class="t ${ver}" title="${{ vo: T.tipVo, nac: T.tipNac, dub: T.tipDub }[ver]}">${at.slice(11, 16)}${tag || ex ? `<sup>${esc([tag, ex].filter(Boolean).join(" "))}</sup>` : ""}</span>`;
+  const inner = `${at.slice(11, 16)}${tag || ex ? `<sup>${esc([tag, ex].filter(Boolean).join(" "))}</sup>` : ""}`;
+  const tip = { vo: T.tipVo, nac: T.tipNac, dub: T.tipDub }[ver];
+  // horaire cliquable vers l'achat sur Ingresso.com quand la séance y est en vente
+  return s[5]
+    ? `<a class="t ${ver} buy" href="https://checkout.ingresso.com/?sessionId=${s[5]}" target="_blank" rel="noopener" title="${esc(tip + " · " + T.buy)}">${inner}</a>`
+    : `<span class="t ${ver}" title="${esc(tip)}">${inner}</span>`;
 }
 
 function setupControls() {

@@ -146,6 +146,17 @@ def fetch_theater_day(tid, day):
     return out
 
 
+def ingresso_session(st):
+    """Numéro de session Ingresso.com de la séance (0 si aucun) : on reconstruit ensuite
+    un lien d'achat propre, sans les codes de suivi commerciaux."""
+    for t in (st.get("data") or {}).get("ticketing") or []:
+        for u in t.get("urls") or []:
+            m = re.search(r"checkout\.ingresso\.com/\?sessionId=(\d+)", u)
+            if m:
+                return int(m.group(1))
+    return 0
+
+
 def movie_info(m):
     year = (m.get("data") or {}).get("productionYear")
     # date de sortie en salles au Brésil (et non les sorties en VOD / streaming)
@@ -366,7 +377,7 @@ def main():
                         extra = [p for p in (st.get("projection") or []) if p not in ("DIGITAL",)]
                         if any("3D" in t for t in tags):
                             extra.append("3D")
-                        shows.append([fid, tid, st["startsAt"][:16], version_of(key, m), sorted(set(extra))])
+                        shows.append([fid, tid, st["startsAt"][:16], version_of(key, m), sorted(set(extra)), ingresso_session(st)])
 
     # Correspondance Letterboxd, en cache d'une exécution à l'autre
     try:
