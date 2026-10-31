@@ -70,17 +70,48 @@
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
   @media (min-width: 700px) { .controls { position: sticky; top: 0; } }
-  @media (max-width: 560px) {
-    .poster, .poster img { width: 60px; }
-    .title { font-size: 16px; }
-    .day b { min-width: 42px; }
+  #more { display: contents; }
+  #morebtn { display: none; }
+  @media (max-width: 699px) {
+    /* téléphone : en-tête compact, filtres secondaires repliés derrière « Filtres » */
+    header { padding: 12px 12px 4px; }
+    h1 { font-size: 20px; }
+    .sub { font-size: 12px; }
+    .sub .intro { display: none; }
+    .controls .in { padding: 8px 12px; gap: 8px; }
+    .controls .in > .row { width: 100%; }
+    #userform { flex-wrap: wrap; }
+    #user { flex: 1; min-width: 0; }
+    #wlstatus { width: 100%; order: 3; font-size: 12px; }
+    #sync { order: 2; }
+    #morebtn { display: inline-block; margin-left: auto; }
+    #morebtn.on { background: #3d4a57; }
+    #more { display: none; }
+    #more.open { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    #more select, #more input[type=search] { width: 100%; }
+    .seg button { padding: 7px 12px; }
+    main { padding: 8px 10px 60px; }
+    .film { gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+    .poster, .poster img { width: 56px; }
+    .title { font-size: 16px; line-height: 1.25; }
+    .badge, .note { font-size: 10px; padding: 1px 6px; margin-left: 4px; }
+    .orig, .meta { font-size: 12px; }
+    .meta { margin-bottom: 2px; }
+    .toggle { padding: 6px 0 2px; }
+    /* les séances prennent toute la largeur de la carte, sous l'affiche */
+    .film { flex-wrap: wrap; }
+    .body { flex: 1 1 calc(100% - 66px); }
+    .shows { width: calc(100% + 66px); margin-left: -66px; }
+    .day b { min-width: 46px; }
+    .t { font-size: 14px; padding: 5px 9px; }
+    .times { gap: 6px; }
   }
 </style>
 </head>
 <body>
 <header>
   <h1>Ciné <span>Rio</span></h1>
-  <div class="sub">Les séances de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence. <span id="updated"></span></div>
+  <div class="sub"><span class="intro">Les séances de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence. </span><span id="updated"></span></div>
 </header>
 
 <div class="controls"><div class="in">
@@ -90,32 +121,35 @@
     <span id="wlstatus"></span>
     <button id="sync" type="button" hidden title="Relire ta watchlist sur Letterboxd (une fois toutes les 10 minutes au plus)">↻ Synchroniser</button>
   </form>
-  <div class="seg" id="version">
-    <button data-v="all" class="on">Tout</button>
-    <button data-v="vo" title="Version originale sous-titrée, et films brésiliens">VO</button>
-    <button data-v="dub">Dublado</button>
-  </div>
-  <label class="chk"><input type="checkbox" id="onlywl"> Seulement ma watchlist</label>
   <div class="row days" id="days"></div>
   <div class="row">
-    <select id="theater"><option value="">Tous les cinémas</option></select>
+    <div class="seg" id="version">
+      <button data-v="all" class="on">Tout</button>
+      <button data-v="vo" title="Version originale sous-titrée, et films brésiliens">VO</button>
+      <button data-v="dub">Dublado</button>
+    </div>
+    <button id="morebtn" type="button">Filtres ▾</button>
+  </div>
+  <div id="more">
+    <label class="chk"><input type="checkbox" id="onlywl"> Seulement ma watchlist</label>
     <select id="sort">
       <option value="wl">Tri : watchlist, puis note</option>
       <option value="lb">Tri : note Letterboxd</option>
       <option value="imdb">Tri : note IMDb</option>
       <option value="n">Tri : nombre de séances</option>
     </select>
+    <select id="theater"><option value="">Tous les cinémas</option></select>
     <select id="after">
       <option value="">Toute la journée</option>
       <option value="12">Après 12h</option><option value="17">Après 17h</option>
       <option value="19">Après 19h</option><option value="21">Après 21h</option>
     </select>
     <input id="q" type="search" placeholder="Chercher un film">
-  </div>
-  <div class="legend">
-    <span><i style="background:var(--vo)"></i>VO légendée</span>
-    <span><i style="background:var(--nac)"></i>Film brésilien</span>
-    <span><i style="background:var(--dub)"></i>Dublado</span>
+    <div class="legend">
+      <span><i style="background:var(--vo)"></i>VO légendée</span>
+      <span><i style="background:var(--nac)"></i>Film brésilien</span>
+      <span><i style="background:var(--dub)"></i>Dublado</span>
+    </div>
   </div>
 </div></div>
 
@@ -219,7 +253,16 @@ function ago(t) {
   return d === 1 ? "hier" : `il y a ${d} jours`;
 }
 
+function updateMoreBtn() {
+  // sur téléphone, rappelle combien de filtres repliés sont actifs
+  const open = $("#more").classList.contains("open");
+  const n = [state.onlyWl, state.theater, state.after, state.q].filter(Boolean).length;
+  $("#morebtn").classList.toggle("on", open || n > 0);
+  $("#morebtn").textContent = `Filtres${n ? ` (${n})` : ""} ${open ? "▴" : "▾"}`;
+}
+
 function render() {
+  updateMoreBtn();
   const now = rioNow();
   const tf = state.theater, q = norm(state.q);
   const byFilm = new Map();
@@ -339,6 +382,10 @@ function setupControls() {
   const ths = Object.entries(DATA.theaters).sort((a, b) => a[1].name.localeCompare(b[1].name));
   $("#theater").innerHTML += ths.map(([id, t]) => `<option value="${id}">${esc(t.name)}</option>`).join("");
   $("#theater").onchange = (e) => { state.theater = e.target.value; render(); };
+  $("#morebtn").onclick = () => {
+    $("#more").classList.toggle("open");
+    updateMoreBtn();
+  };
   $("#sort").onchange = (e) => { state.sort = e.target.value; store.set("sort", state.sort); render(); };
   if (store.get("sort")) { state.sort = $("#sort").value = store.get("sort"); }
   $("#after").onchange = (e) => { state.after = e.target.value; render(); };
