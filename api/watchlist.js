@@ -26,6 +26,11 @@ module.exports = async function handler(req, res) {
       return send(res, 429, { code: "cooldown", min, error: `Déjà synchronisée récemment, réessaie dans ${min} min`, user, syncedAt: rec.t, films: rec.films });
     }
     if (!rec || wantSync) {
+      const ip = String(req.headers["x-real-ip"] || req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+      if (!(await store.allowVisitor(ip))) {
+        const body = { code: "visitor", error: "Trop de pseudos demandés depuis cette connexion, réessaie dans une heure" };
+        return rec ? send(res, 429, { ...body, user, syncedAt: rec.t, films: rec.films }) : send(res, 429, body);
+      }
       if (!(await store.allowFetch())) {
         const body = { code: "busy", error: "Le site est très sollicité, réessaie dans une minute" };
         return rec ? send(res, 429, { ...body, user, syncedAt: rec.t, films: rec.films }) : send(res, 503, body);

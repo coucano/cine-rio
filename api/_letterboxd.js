@@ -1,5 +1,9 @@
 // Lecture de la watchlist publique d'un membre Letterboxd : [[slug, titre, année], ...]
 
+// Plafond : 180 pages de 28 films, soit les 5 040 derniers ajouts (au-delà, les plus anciens sont ignorés)
+const MAX_PAGES = 180;
+const MAX_FILMS = MAX_PAGES * 28;
+
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 function decode(s) {
@@ -39,7 +43,7 @@ async function getWatchlist(user) {
   const first = await fetchPage(user, 1);
   if (first === null) return null;
   const pages = [...first.matchAll(/\/watchlist\/page\/(\d+)\//g)].map((m) => +m[1]);
-  const last = Math.min(Math.max(1, ...pages), 400); // 400 pages = 11 200 films au plus
+  const last = Math.min(Math.max(1, ...pages), MAX_PAGES);
   const films = parse(first);
   const rest = [];
   for (let p = 2; p <= last; p++) rest.push(p);
@@ -60,10 +64,10 @@ async function getNewEntries(user, known, maxPages = 5) {
   const added = [];
   for (let page = 1; page <= maxPages; page++) {
     const html = await fetchPage(user, page);
-    if (html === null) return page === 1 ? null : added.concat(known);
+    if (html === null) return page === 1 ? null : added.concat(known).slice(0, MAX_FILMS);
     const films = parse(html);
     for (const f of films) {
-      if (knownSlugs.has(f[0])) return added.concat(known);
+      if (knownSlugs.has(f[0])) return added.concat(known).slice(0, MAX_FILMS);
       added.push(f);
     }
     if (films.length < 28) return added; // dernière page atteinte sans film connu : tout a été remplacé

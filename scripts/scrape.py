@@ -12,6 +12,7 @@ import html
 import json
 import os
 import re
+import sys
 import time
 import unicodedata
 import urllib.error
@@ -338,10 +339,32 @@ def resolve_letterboxd(film):
     return None
 
 
+def sanity_problem(data, args):
+    """Raison de refuser le résultat (AdoroCinema en panne ou modifié), ou None s'il paraît normal.
+    On compare au fichier de la veille, sans compter ses séances déjà passées."""
+    if args.force or args.limit_theaters:
+        return None
+    if not data["shows"]:
+        return "aucune séance trouvée"
+    try:
+        old = json.load(open(OUT))
+    except Exception:
+        return None
+    since = min(data["days"])
+    old_shows = sum(1 for s in old.get("shows") or [] if s[2] >= since)
+    old_th = len(old.get("theaters") or {})
+    if old_shows >= 200 and len(data["shows"]) < old_shows / 2:
+        return f"{len(data['shows'])} séances contre {old_shows} au dernier passage"
+    if old_th >= 10 and len(data["theaters"]) < old_th / 2:
+        return f"{len(data['theaters'])} cinémas contre {old_th} au dernier passage"
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--limit-theaters", type=int, default=0)
+    ap.add_argument("--force", action="store_true", help="enregistrer même si le résultat paraît anormal")
     args = ap.parse_args()
 
     today = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3))).date()  # heure de Rio
@@ -435,6 +458,10 @@ def main():
         "films": films,
         "shows": shows,
     }
+    problem = sanity_problem(data, args)
+    if problem:
+        print(f"ERREUR : {problem}. Séances non enregistrées (relancer avec --force si c'est normal).")
+        sys.exit(1)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as fh:
         json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
