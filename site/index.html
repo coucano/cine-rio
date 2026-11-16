@@ -214,7 +214,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const state = { day: "", version: "all", onlyWl: false, ths: new Set(), after: "", q: "", sort: "wl", lang: "", bairros: new Set(), view: "film" };
-const ZONES = ["Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste", "Autres"];
+const ZONES = ["Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste", "Niterói", "Autres"];
 
 // Langue de l'interface : ?lang=, sinon choix mémorisé, sinon langue du navigateur
 const UI = (() => {
@@ -228,7 +228,7 @@ const LOCALE = UI === "pt" ? "pt-BR" : "fr-FR";
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 const I18N = {
   fr: {
-    intro: "Les séances de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence. ",
+    intro: "Les séances de la semaine à Rio de Janeiro et Niterói, avec ta watchlist Letterboxd en évidence. ",
     userPh: "pseudo Letterboxd", syncBtn: "↻ Synchroniser",
     syncTitle: "Relire ta watchlist sur Letterboxd (une fois toutes les 10 minutes au plus)",
     all: "Tout", voTitle: "Version originale sous-titrée, et films brésiliens",
@@ -258,7 +258,7 @@ const I18N = {
     preview: "Avant-première", previewTip: (d) => `Sortie en salles le ${d}`,
   },
   pt: {
-    intro: "As sessões da semana no Rio de Janeiro, com a sua watchlist do Letterboxd em destaque. ",
+    intro: "As sessões da semana no Rio de Janeiro e em Niterói, com a sua watchlist do Letterboxd em destaque. ",
     userPh: "usuário do Letterboxd", syncBtn: "↻ Sincronizar",
     syncTitle: "Reler a sua watchlist no Letterboxd (no máximo uma vez a cada 10 minutos)",
     all: "Todos", voTitle: "Versão original legendada, e filmes brasileiros",
@@ -589,7 +589,7 @@ function renderByTheater(films) {
     const nShows = fl.reduce((n, x) => n + x.shows.length, 0), nWl = fl.filter((x) => x.wl).length;
     return `<article class="cine${nWl ? " wl" : ""}" data-tid="${tid}">
       <h2 class="title">${esc(t.name)}${t.bairro ? `<span class="bairro">${esc(t.bairro)}</span>` : ""}${nWl ? `<span class="badge">${T.wlCount(nWl)}</span>` : ""}</h2>
-      <div class="meta">${t.address ? esc(t.address) + " · " : ""}<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.name + " " + (t.address || "Rio de Janeiro"))}" target="_blank" rel="noopener">Maps</a> · <a href="https://www.adorocinema.com/programacao/cinema-${tid}/" target="_blank" rel="noopener">AdoroCinema</a></div>
+      <div class="meta">${t.address ? esc(t.address) + " · " : ""}<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.name + " " + (t.address || t.city || "Rio de Janeiro"))}" target="_blank" rel="noopener">Maps</a> · <a href="https://www.adorocinema.com/programacao/cinema-${tid}/" target="_blank" rel="noopener">AdoroCinema</a></div>
       <button class="toggle" type="button">${open ? T.hideFilms : T.showFilms}<small>${esc(T.films(fl.length) + " · " + T.sessions(nShows))}</small></button>
       <div class="cfilms"${open ? "" : " hidden"}>${fl.map(renderCineFilm).join("")}</div>
     </article>`;

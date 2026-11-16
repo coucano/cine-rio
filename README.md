@@ -1,6 +1,6 @@
 # Ciné Rio
 
-Les séances de cinéma de la semaine à Rio de Janeiro (source : AdoroCinema), avec les films
+Les séances de cinéma de la semaine à Rio de Janeiro et Niterói (source : AdoroCinema), avec les films
 de ta watchlist Letterboxd mis en évidence et un filtre VO / dublado.
 
 - `scripts/scrape.py` récupère les séances et écrit `site/data/showtimes.json`.
