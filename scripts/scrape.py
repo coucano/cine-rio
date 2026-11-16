@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Récupère les séances de cinéma de Rio de Janeiro sur AdoroCinema
+"""Récupère les séances de cinéma de Rio de Janeiro et de Niterói sur AdoroCinema
 et écrit site/data/showtimes.json.
 
 Usage : python3 scripts/scrape.py [--days 7] [--limit-theaters N]
@@ -19,7 +19,11 @@ import urllib.parse
 import urllib.request
 
 BASE = "https://www.adorocinema.com"
-CITY_ID = "296781"  # Rio de Janeiro
+# Villes couvertes : identifiant AdoroCinema, nom, et zone imposée (None = zones de Rio)
+CITIES = [
+    ("296781", "Rio de Janeiro", None),
+    ("296761", "Niterói", "Niterói"),
+]
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "data", "showtimes.json")
@@ -29,7 +33,7 @@ LB_CACHE = os.path.join(ROOT, "site", "data", "letterboxd-map.json")
 
 
 # Quartier et zone de chaque cinéma (l'adresse d'AdoroCinema ne donne pas toujours le quartier)
-ZS, CE, ZN, BJ, ZO = "Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste"
+ZS, CE, ZN, BJ, ZO, NT = "Zona Sul", "Centro", "Zona Norte", "Barra e Jacarepaguá", "Zona Oeste", "Niterói"
 AREAS = {
     "UCI New York City Center": ("Barra da Tijuca", BJ),
     "Kinoplex West Shopping": ("Campo Grande", ZO),
@@ -66,6 +70,11 @@ AREAS = {
     "Centro Cultural Justiça Federal": ("Centro", CE),
     "Cineflix Center Shopping Rio": ("Jacarepaguá", BJ),
     "Cine Carioca José Wilker": ("Laranjeiras", ZS),
+    # Niterói (« Centro » de Niterói distingué de celui de Rio : le filtre se fait par quartier)
+    "Cinemark Plaza Shopping Niteroi": ("Centro (Niterói)", NT),
+    "Cine Arte UFF": ("Icaraí", NT),
+    "Planet Cinemas Itaipu Multicenter": ("Itaipu", NT),
+    "Cinema Reserva Cultural Niterói": ("São Domingos", NT),
 }
 
 
@@ -74,8 +83,13 @@ def area_of(theater):
     if name in AREAS:
         return AREAS[name]
     # sinon : dernier morceau de l'adresse avant le code postal
-    m = re.search(r"-\s*([^-\d][^-]*?)\s+\d{4,5}-?\d{0,3}\s+Rio de Janeiro", theater.get("address") or "")
-    return (m.group(1).strip(), "Autres") if m else ("Autres", "Autres")
+    city, zone = theater.get("city") or "Rio de Janeiro", theater.get("cityZone") or "Autres"
+    m = re.search(r"-\s*([^-\d][^-]*?)\s+\d{4,5}-?\d{0,3}\s+" + re.escape(city), theater.get("address") or "")
+    bairro = m.group(1).strip() if m else "Autres"
+    # un quartier homonyme d'un quartier de Rio (Centro…) garde le nom de sa ville
+    if theater.get("cityZone") and bairro in {b for b, _ in AREAS.values()} | {"Autres"}:
+        bairro = f"{bairro} ({city})"
+    return (bairro, zone)
 
 
 def get(url, tries=3):
@@ -95,11 +109,11 @@ def get(url, tries=3):
         time.sleep(2 * (i + 1))
 
 
-def list_theaters():
+def list_theaters(city_id):
     theaters = {}
     page = 1
     while True:
-        s = get(f"{BASE}/programacao/cinema/cidade-{CITY_ID}/?page={page}")
+        s = get(f"{BASE}/programacao/cinema/cidade-{city_id}/?page={page}")
         if not s:
             break
         found = 0
@@ -347,9 +361,19 @@ def main():
     today = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3))).date()  # heure de Rio
     days = [(today + dt.timedelta(days=i)).isoformat() for i in range(args.days)]
 
-    theaters = list_theaters()
-    for t in theaters.values():
-        t["bairro"], t["zone"] = area_of(t)
+    theaters = {}
+    for city_id, city, zone in CITIES:
+        found = list_theaters(city_id)
+        print(f"{city} : {len(found)} cinémas")
+        for tid, t in found.items():
+            if tid in theaters:
+                continue
+            t["city"] = city
+            if zone:
+                t["cityZone"] = zone
+            t["bairro"], t["zone"] = area_of(t)
+            t.pop("cityZone", None)
+            theaters[tid] = t
     print(f"{len(theaters)} cinémas trouvés")
     tids = list(theaters)[: args.limit_theaters or None]
 
