@@ -375,7 +375,7 @@ def main():
                     for st in lst or []:
                         tags = st.get("tags") or []
                         extra = [p for p in (st.get("projection") or []) if p and p != "DIGITAL"]
-                        if any("3D" in t for t in tags):
+                        if any("3D" in t for t in tags if t):
                             extra.append("3D")
                         shows.append([fid, tid, st["startsAt"][:16], version_of(key, m), sorted(set(extra)), ingresso_session(st)])
 
