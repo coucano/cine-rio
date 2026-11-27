@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ciné Rio · séances de la semaine</title>
+<meta name="description" content="Les séances de cinéma de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence. As sessões de cinema da semana no Rio, com a sua watchlist do Letterboxd em destaque.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ciné Rio · séances de la semaine">
+<meta property="og:description" content="Les séances de cinéma de la semaine à Rio de Janeiro, avec ta watchlist Letterboxd en évidence.">
+<meta name="theme-color" content="#14181c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #14181c; --panel: #1c2228; --line: #2c3440; --text: #e6e9ec; --muted: #8a96a3;
@@ -40,7 +46,7 @@
   #wlstatus { font-size: 13px; color: var(--muted); }
   #wlstatus.ok { color: var(--wl); }
   #wlstatus.err { color: #ff6b6b; }
-  main { max-width: 1000px; margin: 0 auto; padding: 12px 16px 60px; }
+  main { max-width: 1000px; margin: 0 auto; padding: 12px 16px 20px; }
   .count { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
   .film { display: flex; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
   .film.wl { border-color: var(--wl); box-shadow: 0 0 0 1px var(--wl) inset; }
@@ -85,6 +91,7 @@
   .legend { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  footer { max-width: 1000px; margin: 0 auto; padding: 10px 16px 30px; color: var(--muted); font-size: 12px; }
   @media (min-width: 700px) and (min-height: 501px) { .controls { position: sticky; top: 0; } }
   #more { display: contents; }
   .pick { position: relative; }
@@ -126,7 +133,7 @@
     .picklist { position: static; width: auto; max-width: none; margin-top: 6px; box-shadow: none; }
     .bairros label { min-height: 30px; }
     .seg button { padding: 7px 12px; }
-    main { padding: 8px 10px 60px; }
+    main { padding: 8px 10px 20px; }
     .film { gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
     .poster, .poster img { width: 56px; }
     .title { font-size: 16px; line-height: 1.25; }
@@ -210,6 +217,7 @@
   <div class="count" id="count"></div>
   <div id="list"><div class="empty"></div></div>
 </main>
+<footer><p data-i18n="privacy"></p></footer>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -244,6 +252,7 @@ const I18N = {
     wlOk: (n, u, k) => `${n} films dans la watchlist de ${u}, ${k} à l'affiche`, synced: (a) => `synchronisée ${a}`,
     err404: "membre introuvable ou watchlist privée", errBusy: "le site est très sollicité, réessaie dans une minute",
     errCooldown: (m) => `Déjà synchronisée récemment, réessaie dans ${m} min`, errBad: "pseudo invalide",
+    errVisitor: "trop de pseudos demandés depuis cette connexion, réessaie dans une heure",
     now: "à l'instant", minAgo: (m) => `il y a ${m} min`, hAgo: (h) => `il y a ${h} h`, yesterday: "hier", dAgo: (d) => `il y a ${d} jours`,
     films: (n) => plural(n, "film", "films"), ofWl: (n) => `, dont ${n} de ta watchlist`,
     noWl: "Entre ton pseudo Letterboxd en haut pour voir ta watchlist.", noShows: "Aucune séance avec ces filtres.",
@@ -251,6 +260,7 @@ const I18N = {
     sessions: (n) => plural(n, "séance", "séances"), cinemas: (n) => plural(n, "cinéma", "cinémas"),
     verNac: "brésilien", verDub: "dublado", tipVo: "VO légendée", tipNac: "Film brésilien", tipDub: "Dublado",
     updated: (d) => `Mis à jour le ${d}.`,
+    privacy: "Confidentialité : ton pseudo Letterboxd et ta watchlist publique sont gardés sur le site pour l'afficher plus vite, puis effacés après six mois sans visite. Ils sont aussi mémorisés dans ton navigateur. Le site ne garde rien d'autre : ton adresse de connexion sert seulement à limiter les abus, sous forme d'empreinte effacée après deux heures.",
     viewFilm: "Par film", viewTh: "Par cinéma", showFilms: "▸ Voir les films ", hideFilms: "▾ Masquer les films ",
     wlCount: (n) => `${n} de ta watchlist`,
     buy: "acheter sa place sur Ingresso.com", buyHint: "Touche un horaire pour acheter ta place.",
@@ -274,6 +284,7 @@ const I18N = {
     wlOk: (n, u, k) => `${n} filmes na watchlist de ${u}, ${k} em cartaz`, synced: (a) => `sincronizada ${a}`,
     err404: "usuário não encontrado ou watchlist privada", errBusy: "o site está muito acessado, tente de novo em um minuto",
     errCooldown: (m) => `Sincronizada há pouco, tente de novo em ${m} min`, errBad: "usuário inválido",
+    errVisitor: "muitos usuários pedidos desta conexão, tente de novo em uma hora",
     now: "agora mesmo", minAgo: (m) => `há ${m} min`, hAgo: (h) => `há ${h} h`, yesterday: "ontem", dAgo: (d) => `há ${d} dias`,
     films: (n) => plural(n, "filme", "filmes"), ofWl: (n) => `, ${n} da sua watchlist`,
     noWl: "Digite o seu usuário do Letterboxd lá em cima para ver a sua watchlist.", noShows: "Nenhuma sessão com esses filtros.",
@@ -281,6 +292,7 @@ const I18N = {
     sessions: (n) => plural(n, "sessão", "sessões"), cinemas: (n) => plural(n, "cinema", "cinemas"),
     verNac: "nacional", verDub: "dublado", tipVo: "Legendado", tipNac: "Filme brasileiro", tipDub: "Dublado",
     updated: (d) => `Atualizado em ${d}.`,
+    privacy: "Privacidade: o seu usuário do Letterboxd e a sua watchlist pública ficam guardados no site para aparecer mais rápido, e são apagados depois de seis meses sem visita. Também ficam guardados no seu navegador. O site não guarda mais nada: o seu endereço de conexão só serve para limitar abusos, na forma de uma impressão apagada depois de duas horas.",
     viewFilm: "Por filme", viewTh: "Por cinema", showFilms: "▸ Ver os filmes ", hideFilms: "▾ Esconder os filmes ",
     wlCount: (n) => `${n} da sua watchlist`,
     buy: "comprar ingresso no Ingresso.com", buyHint: "Toque num horário para comprar o ingresso.",
@@ -290,7 +302,7 @@ const I18N = {
 };
 const T = I18N[UI];
 // messages d'erreur du serveur, traduits d'après leur code
-const apiError = (j) => ({ notfound: T.err404, busy: T.errBusy, cooldown: T.errCooldown(j.min), invalid: T.errBad }[j.code] || j.error || "erreur");
+const apiError = (j) => ({ notfound: T.err404, busy: T.errBusy, cooldown: T.errCooldown(j.min), invalid: T.errBad, visitor: T.errVisitor }[j.code] || j.error || "erreur");
 
 function applyStaticTexts() {
   document.documentElement.lang = UI === "pt" ? "pt-BR" : "fr";
@@ -370,37 +382,69 @@ function setWatchlist(films) {
   }
 }
 
-async function loadWatchlist(user, sync) {
+// Watchlist gardée dans le navigateur : les films sont mis en évidence dès l'ouverture,
+// puis la version du site est relue en arrière-plan.
+const wlCache = {
+  get(user) {
+    try { const c = JSON.parse(store.get("lbcache")); return c && c.user === user && Array.isArray(c.films) ? c : null; } catch { return null; }
+  },
+  set(user, t, films) { store.set("lbcache", JSON.stringify({ user, t, films })); },
+};
+let wlToken = 0; // ignore les réponses d'un pseudo précédent
+
+function showWlStatus(user, syncedAt, note) {
   const st = $("#wlstatus");
-  user = user.trim().toLowerCase().replace(/^@/, "").replace(/.*letterboxd\.com\//, "").replace(/\/.*/, "");
-  $("#sync").hidden = true;
-  if (!user) { WL = null; st.textContent = ""; store.set("lbuser", null); render(); return; }
-  $("#user").value = user;
-  let syncedAt = null, note = "";
-  if (window.EMBED_WATCHLIST && window.EMBED_WATCHLIST.user === user) {
-    setWatchlist(window.EMBED_WATCHLIST.films);
-  } else {
-    // la watchlist est gardée sur le site et resynchronisée chaque semaine (ou via le bouton)
-    try {
-      st.className = ""; st.textContent = sync ? T.wlSyncing : T.wlLoading;
-      const r = await fetch("/api/watchlist?user=" + encodeURIComponent(user) + (sync ? "&sync=1" : ""));
-      const j = await r.json();
-      if (!r.ok && !j.films) throw new Error(apiError(j));
-      if (!r.ok) note = " · " + apiError(j);
-      setWatchlist(j.films);
-      syncedAt = j.syncedAt;
-    } catch (e) {
-      WL = null; st.className = "err"; st.textContent = T.wlNotFound(e.message); render(); return;
-    }
-  }
-  store.set("lbuser", user);
-  try { const url = new URL(location.href); url.searchParams.set("u", user); history.replaceState(null, "", url); } catch {}
   $("#sync").hidden = !syncedAt;
   if (!WL.slugs.size) { st.className = "err"; st.textContent = T.wlEmpty(user) + note; render(); return; }
   const n = Object.values(DATA.films).filter(inWatchlist).length;
   st.className = "ok";
   st.textContent = T.wlOk(WL.slugs.size, user, n) + (syncedAt ? " · " + T.synced(ago(syncedAt)) : "") + note;
   render();
+}
+
+async function loadWatchlist(user, sync) {
+  const st = $("#wlstatus");
+  const token = ++wlToken;
+  user = user.trim().toLowerCase().replace(/^@/, "").replace(/.*letterboxd\.com\//, "").replace(/\/.*/, "");
+  $("#sync").hidden = true;
+  if (!user) { WL = null; st.textContent = ""; store.set("lbuser", null); store.set("lbcache", null); render(); return; }
+  $("#user").value = user;
+  let syncedAt = null, note = "";
+  if (window.EMBED_WATCHLIST && window.EMBED_WATCHLIST.user === user) {
+    setWatchlist(window.EMBED_WATCHLIST.films);
+  } else {
+    // la watchlist est gardée sur le site et resynchronisée chaque jour (ou via le bouton)
+    const cached = wlCache.get(user);
+    if (cached && !sync) {
+      setWatchlist(cached.films);
+      showWlStatus(user, cached.t, "");
+      $("#sync").hidden = true; // le temps de la relecture
+    } else {
+      st.className = ""; st.textContent = sync ? T.wlSyncing : T.wlLoading;
+    }
+    try {
+      const r = await fetch("/api/watchlist?user=" + encodeURIComponent(user) + (sync ? "&sync=1" : ""));
+      const j = await r.json();
+      if (token !== wlToken) return;
+      if (!r.ok && !j.films) throw new Error(apiError(j));
+      if (!r.ok) note = " · " + apiError(j);
+      setWatchlist(j.films);
+      syncedAt = j.syncedAt;
+      wlCache.set(user, syncedAt, j.films);
+    } catch (e) {
+      if (token !== wlToken) return;
+      if (cached) {
+        setWatchlist(cached.films);
+        syncedAt = cached.t;
+        note = " · " + e.message;
+      } else {
+        WL = null; st.className = "err"; st.textContent = T.wlNotFound(e.message); render(); return;
+      }
+    }
+  }
+  store.set("lbuser", user);
+  try { const url = new URL(location.href); url.searchParams.set("u", user); history.replaceState(null, "", url); } catch {}
+  showWlStatus(user, syncedAt, note);
 }
 
 function ago(t) {
@@ -735,7 +779,8 @@ function setupControls() {
   $("#sort").onchange = (e) => { state.sort = e.target.value; store.set("sort", state.sort); render(); };
   if (store.get("sort")) { state.sort = $("#sort").value = store.get("sort"); }
   $("#after").onchange = (e) => { state.after = e.target.value; render(); };
-  $("#q").oninput = (e) => { state.q = e.target.value; render(); };
+  let qTimer; // on attend une courte pause dans la frappe avant de filtrer
+  $("#q").oninput = (e) => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.q = e.target.value; render(); }, 150); };
   $("#onlywl").onchange = (e) => { state.onlyWl = e.target.checked; render(); };
   const setView = (w) => {
     state.view = w; store.set("view", w);
